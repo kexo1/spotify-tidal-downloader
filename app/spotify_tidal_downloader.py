@@ -1,5 +1,4 @@
 import json
-from math import log
 import re
 import httpx
 import logging
