@@ -1,0 +1,18 @@
+{
+    "paths": {
+        "playlistFile": "./playlist.csv",
+        "downloadPath": "./downloads",
+        "cachePath": "./cache",
+        "logPath": "./logs"
+    },
+    "downloader": {
+        "retryFailed": true,
+        "preferTidalNaming": false,
+        "windowsSafeFileNames": true,
+        "concurrentDownloads": 10,
+        "loggingLevel": "info"
+    },
+    "songs": {
+        "quality": "high"
+    }
+}

@@ -1,0 +1,4 @@
+httpx
+music_metadata_filter
+ua-generator
+mutagen

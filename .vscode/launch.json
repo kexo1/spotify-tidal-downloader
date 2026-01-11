@@ -1,0 +1,12 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run app.main module",
+      "type": "python",
+      "request": "launch",
+      "module": "app.main",
+      "console": "integratedTerminal",
+    }
+  ]
+}
