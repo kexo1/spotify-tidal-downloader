@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 
 import httpx
+from matplotlib.pylab import f
 from music_metadata_filter.functions import (
     remove_feature,
     remove_reissue,
@@ -87,15 +88,24 @@ class SpotifyTidalDownloader:
         for spotify_track in self.spotify_tracks.values():
             full_title = f"{spotify_track['artist']} - {spotify_track['title']}"
 
+            completed_download = self.completed_downloads.get(full_title, {})
+            lyrics_missing = completed_download.get("lyrics") is False
+            unsynced_exists = completed_download.get("unsynced_exists")
+
+            find_lyrics = lyrics_missing and unsynced_exists is not False
+
+            find_unsynced = (
+                lyrics_missing is True
+                and unsynced_exists is True
+                and DOWNLOAD_UNSYNCED_LYRICS
+            )
+
             if self._is_downloaded(full_title):
-                if (
-                    not self.completed_downloads.get(full_title, {}).get("lyrics")
-                    and DOWNLOAD_LYRICS
-                ):
+                if DOWNLOAD_LYRICS and (find_lyrics or find_unsynced):
                     logging.info(
                         f"🔍 [{index:02d}] Fetching lyrics for previously downloaded track: {full_title}"
                     )
-                    track_data = self.completed_downloads.get(full_title).copy()
+                    track_data = completed_download.copy()
                     track_data["full_title"] = full_title
                     track_data = self._prepare_track_data_lyrics(track_data)
                     lyrics_task.append(
@@ -296,10 +306,15 @@ class SpotifyTidalDownloader:
                 matched = False
 
         if matched:
+            title = t_track_title if PREFER_TIDAL_NAMING else s_track_title
+            artist = t_track_artist if PREFER_TIDAL_NAMING else s_track_artist
+            full_title = f"{artist} - {title}"
+
             track_data = {
                 "url": download_url,
-                "title": t_track_title if PREFER_TIDAL_NAMING else s_track_title,
-                "artist": t_track_artist if PREFER_TIDAL_NAMING else s_track_artist,
+                "title": title,
+                "full_title": full_title,
+                "artist": artist,
                 "album": t_track_album if PREFER_TIDAL_NAMING else s_track_album,
                 "cover": tidal_track["album"].get("cover"),
                 "trackNumber": tidal_track.get("trackNumber", 0),
@@ -353,7 +368,6 @@ class SpotifyTidalDownloader:
         async with httpx.AsyncClient() as client:
             while True:
                 track: dict = await self.download_queue.get()
-                full_title = f"{track['spotify_artist']} - {track['spotify_title']}"
 
                 try:
                     url = track["url"]
@@ -377,12 +391,16 @@ class SpotifyTidalDownloader:
                                 f.write(chunk)
 
                     await self._add_metadata(track, ext, save_path)
-                    found_lyrics = await self._fetch_lyrics(track)
-                    logging.info(f"💾 Downloaded: {track['title']}")
+                    found_lyrics, unsynced_exists = await self._fetch_lyrics(track)
+                    logging.info(f"💾 Downloaded: {track['full_title']}")
 
-                    self.completed_downloads[full_title] = {
+                    full_title_spotify = (
+                        f"{track['spotify_artist']} - {track['spotify_title']}"
+                    )
+                    self.completed_downloads[full_title_spotify] = {
                         "path": os.path.normpath(save_path),
                         "lyrics": found_lyrics,
+                        "unsynced_exists": unsynced_exists,
                         "tidal_title": track["tidal_title"],
                         "tidal_artists": track["tidal_artists"],
                         "tidal_album": track["tidal_album"],
@@ -394,7 +412,7 @@ class SpotifyTidalDownloader:
 
                 except Exception as e:
                     logging.error(f"❌ Failed to download {track['title']}: {e}")
-                    self.failed_downloads[full_title] = {"reason": str(e)}
+                    self.failed_downloads[full_title_spotify] = {"reason": str(e)}
                     save_json_file(CACHE_FAILED_DOWNLOADS_PATH, self.failed_downloads)
 
                 finally:
@@ -403,12 +421,12 @@ class SpotifyTidalDownloader:
     async def _download_lyrics_for_cached_tracks(self, track) -> None:
         async with self.semaphore:
             try:
-                found_lyrics = await self._fetch_lyrics(track)
-                if found_lyrics:
-                    self.completed_downloads[track["full_title"]]["lyrics"] = True
-                    save_json_file(
-                        CACHE_COMPLETED_DOWNLOADS_PATH, self.completed_downloads
-                    )
+                found_lyrics, unsynced_exists = await self._fetch_lyrics(track)
+                self.completed_downloads[track["full_title"]].update(
+                    lyrics=found_lyrics,
+                    unsynced_exists=unsynced_exists,
+                )
+                save_json_file(CACHE_COMPLETED_DOWNLOADS_PATH, self.completed_downloads)
             except Exception as e:
                 print(f"❌ Failed to fetch lyrics for {track['full_title']}: {e}")
 
@@ -490,8 +508,9 @@ class SpotifyTidalDownloader:
 
     async def _fetch_lyrics(self, track: dict) -> bool:
         """Fetch lyrics for a given track."""
+        found_lyrics, unsynced_exists = False, None
         if not DOWNLOAD_LYRICS:
-            return False
+            return found_lyrics, unsynced_exists
 
         params = {
             "track_name": track["tidal_title"],
@@ -506,6 +525,7 @@ class SpotifyTidalDownloader:
         )
 
         lyrics = ""
+        data = {}
         if response.status_code == 200:
             data = response.json()
             lyrics = data.get("syncedLyrics", "")
@@ -514,11 +534,13 @@ class SpotifyTidalDownloader:
 
         if not lyrics and not DOWNLOAD_UNSYNCED_LYRICS:
             logging.info(f"❌ No synced lyrics found for: {track['full_title']}")
-            return False
+            unsynced_exists = data.get("plainLyrics") is not None
+            return found_lyrics, unsynced_exists
 
         if not lyrics:
             logging.info(f"❌ No lyrics found for: {track['full_title']}")
-            return False
+            unsynced_exists = False
+            return found_lyrics, unsynced_exists
 
         track_title = format_text_for_os(track["title"])
 
@@ -526,8 +548,10 @@ class SpotifyTidalDownloader:
         with open(lyrics_path, "w", encoding="utf-8") as f:
             f.write(lyrics)
 
+        found_lyrics, unsynced_exists = True, True
         logging.info(f"📝 Lyrics downloaded for: {track['full_title']}")
-        return True
+
+        return found_lyrics, unsynced_exists
 
     def _prepare_track_data_lyrics(self, track_data: dict) -> dict:
         """Prepare track data for lyrics fetching."""
