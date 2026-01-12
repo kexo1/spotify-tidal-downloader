@@ -91,11 +91,15 @@ class SpotifyTidalDownloader:
             lyrics_missing = completed_download.get("lyrics") is False
             unsynced_exists = completed_download.get("unsynced_exists")
 
-            find_lyrics = lyrics_missing and unsynced_exists is not False
+            find_lyrics = (
+                lyrics_missing
+                and unsynced_exists is not True
+                and unsynced_exists is not False
+            )
 
             find_unsynced = (
                 lyrics_missing is True
-                and unsynced_exists is True
+                and unsynced_exists is not False
                 and DOWNLOAD_UNSYNCED_LYRICS
             )
 
