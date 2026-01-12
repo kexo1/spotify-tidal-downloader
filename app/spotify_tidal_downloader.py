@@ -1,46 +1,43 @@
-from asyncio.constants import SENDFILE_FALLBACK_READBUFFER_SIZE
+import asyncio
+import csv
 import json
-from math import log
-from pathlib import Path
-import re
-import httpx
 import logging
 import os
-import csv
-import asyncio
+import re
 import tempfile
+from pathlib import Path
 
-from datetime import datetime
-from mutagen.mp4 import MP4, MP4Cover
-from mutagen.flac import FLAC, Picture
-
-from app.utils import (
-    normalize,
-    format_text_for_os,
-    load_json_file,
-    save_json_file,
-    base64_decode,
-    is_valid_flac,
-)
-from app.constants import (
-    PLAYLIST_FILE,
-    RETRY_FAILED,
-    SONG_QUALITY,
-    DOWNLOAD_PATH,
-    CONCURRENT_DOWNLOADS,
-    PREFER_TIDAL_NAMING,
-    SPOTIFY_TO_TIDAL_NAMING,
-    DOWNLOAD_LYRICS,
-    DOWNLOAD_UNSYNCED_LYRICS,
-    LRCLIB_API,
-    CACHE_COMPLETED_DOWNLOADS_PATH,
-    CACHE_FAILED_DOWNLOADS_PATH,
-)
+import httpx
 from music_metadata_filter.functions import (
     remove_feature,
+    remove_reissue,
     remove_remastered,
     remove_version,
-    remove_reissue,
+)
+from mutagen.flac import FLAC, Picture
+from mutagen.mp4 import MP4, MP4Cover
+
+from app.constants import (
+    CACHE_COMPLETED_DOWNLOADS_PATH,
+    CACHE_FAILED_DOWNLOADS_PATH,
+    CONCURRENT_DOWNLOADS,
+    DOWNLOAD_LYRICS,
+    DOWNLOAD_PATH,
+    DOWNLOAD_UNSYNCED_LYRICS,
+    LRCLIB_API,
+    PLAYLIST_FILE,
+    PREFER_TIDAL_NAMING,
+    RETRY_FAILED,
+    SONG_QUALITY,
+    SPOTIFY_TO_TIDAL_NAMING,
+)
+from app.utils import (
+    base64_decode,
+    format_text_for_os,
+    is_valid_flac,
+    load_json_file,
+    normalize,
+    save_json_file,
 )
 
 

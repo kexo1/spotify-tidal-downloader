@@ -1,10 +1,8 @@
+import glob
 import json
 import logging
 import os
-import glob
-
 from datetime import datetime
-
 
 #################################### Instance URLs ####################################
 MONOCHROME_API_INSTANCES = [

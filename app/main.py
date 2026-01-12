@@ -1,15 +1,16 @@
 import asyncio
 import logging
+
 import httpx
 import ua_generator
 
-from app.spotify_tidal_downloader import SpotifyTidalDownloader
 from app.constants import (
-    MONOCHROME_API_INSTANCES,
-    STREAMING_INSTANCES,
-    SONG_QUALITY,
     CONCURRENT_DOWNLOADS,
+    MONOCHROME_API_INSTANCES,
+    SONG_QUALITY,
+    STREAMING_INSTANCES,
 )
+from app.spotify_tidal_downloader import SpotifyTidalDownloader
 from app.utils import get_fastest_instance
 
 

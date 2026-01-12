@@ -1,17 +1,14 @@
-import time
-import httpx
-import unicodedata
-import json
 import base64
+import json
 import os
-
+import time
+import unicodedata
 from pathlib import Path
+
+import httpx
 from mutagen.flac import FLAC
 
-from app.constants import (
-    WINDOWS_DISALLOWED_CHARS,
-    WINDOWS_SAFE_FILE_NAMES,
-)
+from app.constants import WINDOWS_DISALLOWED_CHARS, WINDOWS_SAFE_FILE_NAMES
 
 
 def format_text_for_os(text: str) -> str:
