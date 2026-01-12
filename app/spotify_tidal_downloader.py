@@ -8,7 +8,6 @@ import tempfile
 from pathlib import Path
 
 import httpx
-from matplotlib.pylab import f
 from music_metadata_filter.functions import (
     remove_feature,
     remove_reissue,
