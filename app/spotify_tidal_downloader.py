@@ -1,4 +1,7 @@
+from asyncio.constants import SENDFILE_FALLBACK_READBUFFER_SIZE
 import json
+from math import log
+from pathlib import Path
 import re
 import httpx
 import logging
@@ -17,6 +20,7 @@ from app.utils import (
     load_json_file,
     save_json_file,
     base64_decode,
+    is_valid_flac,
 )
 from app.constants import (
     PLAYLIST_FILE,
@@ -26,6 +30,9 @@ from app.constants import (
     CONCURRENT_DOWNLOADS,
     PREFER_TIDAL_NAMING,
     SPOTIFY_TO_TIDAL_NAMING,
+    DOWNLOAD_LYRICS,
+    DOWNLOAD_UNSYNCED_LYRICS,
+    LRCLIB_API,
     CACHE_COMPLETED_DOWNLOADS_PATH,
     CACHE_FAILED_DOWNLOADS_PATH,
 )
@@ -62,6 +69,7 @@ class SpotifyTidalDownloader:
         self.failed_downloads = {}
         self.completed_downloads = {}
         self.download_queue = asyncio.Queue()
+        self.semaphore = asyncio.Semaphore(5)
 
     async def run(self) -> None:
         self.spotify_tracks = load_spotify_playlist()
@@ -76,13 +84,30 @@ class SpotifyTidalDownloader:
             asyncio.create_task(self._download_worker())
             for _ in range(CONCURRENT_DOWNLOADS)
         ]
+        lyrics_task = []
 
         index = 1
         for spotify_track in self.spotify_tracks.values():
             full_title = f"{spotify_track['artist']} - {spotify_track['title']}"
 
             if self._is_downloaded(full_title):
-                logging.info(f"⏭️ [{index:02d}] Skipping downloaded track: {full_title}")
+                if (
+                    not self.completed_downloads.get(full_title, {}).get("lyrics")
+                    and DOWNLOAD_LYRICS
+                ):
+                    logging.info(
+                        f"🔍 [{index:02d}] Fetching lyrics for previously downloaded track: {full_title}"
+                    )
+                    track_data = self.completed_downloads.get(full_title).copy()
+                    track_data["full_title"] = full_title
+                    track_data = self._prepare_track_data_lyrics(track_data)
+                    lyrics_task.append(
+                        self._download_lyrics_for_cached_tracks(track_data)
+                    )
+                else:
+                    logging.info(
+                        f"⏭️ [{index:02d}] Skipping downloaded track: {full_title}"
+                    )
                 index += 1
                 continue
 
@@ -97,6 +122,9 @@ class SpotifyTidalDownloader:
                 await self.download_queue.put(track_data)
             index += 1
 
+        if lyrics_task:
+            await asyncio.gather(*lyrics_task)
+
         await self.download_queue.join()
         for w in workers:
             w.cancel()
@@ -105,7 +133,7 @@ class SpotifyTidalDownloader:
             logging.info(f"😞 Failed downloads: {len(self.failed_downloads)}.")
 
         logging.info(
-            f"✅ Completed {len(self.completed_downloads)}/{len(self.spotify_tracks)} ({round(len(self.completed_downloads) / len(self.spotify_tracks) * 100, 2)})% downloads."
+            f"✅ Completed {len(self.completed_downloads)}/{len(self.spotify_tracks)} ({round(len(self.completed_downloads) / len(self.spotify_tracks) * 100, 2)}%) downloads."
         )
 
     async def _get_queries(
@@ -195,10 +223,10 @@ class SpotifyTidalDownloader:
             s_track_artists = spotify_track_data["artists_all"]
             s_track_album = spotify_track_data["album"]
 
-            t_track_title = tidal_track["title"]
-            t_track_artists = get_artist_names(tidal_track["artist"])
-            t_track_artist = t_track_artists[0]
-            t_track_album = tidal_track["album"]["title"]
+            t_track_title = tidal_track.get("title", "")
+            t_track_artists = get_artist_names(tidal_track.get("artists", []))
+            t_track_artist = tidal_track.get("artist", {}).get("name", "")
+            t_track_album = tidal_track.get("album", {}).get("title", "")
             t_track_version = tidal_track.get("version", "")
 
             if t_track_version:
@@ -279,9 +307,15 @@ class SpotifyTidalDownloader:
                 "cover": tidal_track["album"].get("cover"),
                 "trackNumber": tidal_track.get("trackNumber", 0),
                 "releaseDate": tidal_track.get("streamStartDate", ""),
+                "duration": tidal_track.get("duration", 0),
                 "audioQuality": SONG_QUALITY.upper(),
                 "spotify_title": s_track_title,
                 "spotify_artist": s_track_artist,
+                "tidal_title": t_track_title,
+                "tidal_artists": ", ".join(t_track_artists)
+                if len(t_track_artists) > 1
+                else t_track_artist,
+                "tidal_album": t_track_album,
             }
 
             logging.info(
@@ -329,9 +363,14 @@ class SpotifyTidalDownloader:
 
                     track_download_dir = get_download_path(track)
                     os.makedirs(track_download_dir, exist_ok=True)
+                    track["download_path"] = track_download_dir
 
                     track_title = format_text_for_os(track["title"])
-                    ext = ".m4a" if track["audioQuality"].upper() == "HIGH" else ".flac"
+                    ext = (
+                        ".flac"
+                        if track["audioQuality"].upper() == "LOSSLESS"
+                        else ".m4a"
+                    )
                     save_path = os.path.join(track_download_dir, f"{track_title}{ext}")
 
                     async with client.stream("GET", url) as response:
@@ -341,11 +380,16 @@ class SpotifyTidalDownloader:
                                 f.write(chunk)
 
                     await self._add_metadata(track, ext, save_path)
+                    found_lyrics = await self._fetch_lyrics(track)
                     logging.info(f"💾 Downloaded: {track['title']}")
 
                     self.completed_downloads[full_title] = {
                         "path": os.path.normpath(save_path),
-                        "date": datetime.now().isoformat(),
+                        "lyrics": found_lyrics,
+                        "tidal_title": track["tidal_title"],
+                        "tidal_artists": track["tidal_artists"],
+                        "tidal_album": track["tidal_album"],
+                        "duration": track["duration"],
                     }
                     save_json_file(
                         CACHE_COMPLETED_DOWNLOADS_PATH, self.completed_downloads
@@ -358,6 +402,18 @@ class SpotifyTidalDownloader:
 
                 finally:
                     self.download_queue.task_done()
+
+    async def _download_lyrics_for_cached_tracks(self, track) -> None:
+        async with self.semaphore:
+            try:
+                found_lyrics = await self._fetch_lyrics(track)
+                if found_lyrics:
+                    self.completed_downloads[track["full_title"]]["lyrics"] = True
+                    save_json_file(
+                        CACHE_COMPLETED_DOWNLOADS_PATH, self.completed_downloads
+                    )
+            except Exception as e:
+                print(f"❌ Failed to fetch lyrics for {track['full_title']}: {e}")
 
     async def _add_metadata(self, track: dict, ext: str, save_path: str) -> None:
         cover_path = None
@@ -406,6 +462,14 @@ class SpotifyTidalDownloader:
             audio.save()
 
         else:
+            if not is_valid_flac(save_path):
+                logging.warning(
+                    f"❌ Skipping metadata for invalid FLAC file: {track['title']}.flac"
+                )
+                if cover_path and os.path.exists(cover_path):
+                    os.remove(cover_path)
+                return
+
             audio = FLAC(save_path)
 
             audio["title"] = track["title"]
@@ -426,6 +490,54 @@ class SpotifyTidalDownloader:
 
         if cover_path and os.path.exists(cover_path):
             os.remove(cover_path)
+
+    async def _fetch_lyrics(self, track: dict) -> bool:
+        """Fetch lyrics for a given track."""
+        if not DOWNLOAD_LYRICS:
+            return False
+
+        params = {
+            "track_name": track["tidal_title"],
+            "artist_name": track["tidal_artists"],
+            "album_name": track["tidal_album"],
+            "duration": track["duration"],
+        }
+
+        response = await self.session.get(
+            LRCLIB_API,
+            params=params,
+        )
+
+        lyrics = ""
+        if response.status_code == 200:
+            data = response.json()
+            lyrics = data.get("syncedLyrics", "")
+            if not lyrics and DOWNLOAD_UNSYNCED_LYRICS:
+                lyrics = data.get("plainLyrics", "")
+
+        if not lyrics and not DOWNLOAD_UNSYNCED_LYRICS:
+            logging.info(f"❌ No synced lyrics found for: {track['full_title']}")
+            return False
+
+        if not lyrics:
+            logging.info(f"❌ No lyrics found for: {track['full_title']}")
+            return False
+
+        track_title = format_text_for_os(track["title"])
+
+        lyrics_path = os.path.join(track["download_path"], f"{track_title}.lrc")
+        with open(lyrics_path, "w", encoding="utf-8") as f:
+            f.write(lyrics)
+
+        logging.info(f"📝 Lyrics downloaded for: {track['full_title']}")
+        return True
+
+    def _prepare_track_data_lyrics(self, track_data: dict) -> dict:
+        """Prepare track data for lyrics fetching."""
+        file_path = Path(track_data["path"])
+        track_data["title"] = file_path.stem
+        track_data["download_path"] = str(file_path.parent)
+        return track_data
 
     def _is_downloaded(self, full_title: str) -> bool:
         """Check if the track is already downloaded based on its info."""
@@ -493,16 +605,17 @@ def is_match(search: str, found: str, field: str) -> MatchType:
         return MatchType.SKIP
 
     if field == TrackFindType.ARTISTS_ALL:
-        for s in set(s_norm):
-            if s in f_norm:
+        s_parts = set(s_norm.split(";"))
+        f_parts = set(f_norm.split(";"))
+    else:
+        s_parts = set(s_norm.split())
+        f_parts = set(f_norm.split())
+
+    for s in s_parts:
+        for f in f_parts:
+            if len(s) >= 3 and len(f) >= 3 and (s in f or f in s):
                 logging.debug(f"Found substring match for '{s_norm}' in '{f_norm}'")
                 return MatchType.SUBSTRING
-    else:
-        for s in set(s_norm.split()):
-            for f in set(f_norm.split()):
-                if len(s) >= 3 and len(f) >= 3 and (s in f or f in s):
-                    logging.debug(f"Found substring match for '{s_norm}' in '{f_norm}'")
-                    return MatchType.SUBSTRING
 
     return MatchType.NONE
 

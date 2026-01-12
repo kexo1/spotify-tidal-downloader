@@ -1,8 +1,9 @@
 import json
 import logging
 import os
+import glob
 
-from logging.handlers import TimedRotatingFileHandler
+from datetime import datetime
 
 
 #################################### Instance URLs ####################################
@@ -16,6 +17,8 @@ STREAMING_INSTANCES = [
     "https://triton.squid.wtf",
 ]
 
+LRCLIB_API = "https://lrclib.net/api/get"
+
 ##################################### Configuration ####################################
 with open("config.json") as f:
     data = json.load(f)
@@ -28,10 +31,13 @@ CACHE_PATH = data["paths"].get("cachePath", "./cache")
 RETRY_FAILED = data["downloader"].get("retryFailed", True)
 PREFER_TIDAL_NAMING = data["downloader"].get("preferTidalNaming", False)
 WINDOWS_SAFE_FILE_NAMES = data["downloader"].get("windowsSafeFileNames", True)
+DOWNLOAD_LYRICS = data["downloader"].get("downloadLyrics", True)
+DOWNLOAD_UNSYNCED_LYRICS = data["downloader"].get("downloadUnsyncedLyrics", False)
 CONCURRENT_DOWNLOADS = data["downloader"].get("concurrentDownloads", 3)
+LOG_LIMIT = data["downloader"].get("logLimit", 5)
 LOGGING_LEVEL = data["downloader"].get("loggingLevel", "INFO").upper()
 
-SONG_QUALITY = data["songs"].get("quality", "high")  # options: lossless, high
+SONG_QUALITY = data["songs"].get("quality", "high")  # options: lossless, high, low
 
 if LOGGING_LEVEL not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
     LOGGING_LEVEL = "INFO"
@@ -56,18 +62,15 @@ SPOTIFY_TO_TIDAL_NAMING = {
 
 
 ###################################### Logging Setup ####################################
-LOG_PATH = "logs"
 os.makedirs(LOG_PATH, exist_ok=True)
-LOG_FILE = os.path.join(LOG_PATH, "downloader.log")
-open(LOG_FILE, "w", encoding="utf-8").close()
+timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+LOG_FILE = os.path.join(LOG_PATH, f"downloader-{timestamp}.log")
 
 formatter = logging.Formatter(
     "%(asctime)s - %(levelname)s - %(message)s", datefmt="%d/%m/%y %H:%M:%S"
 )
 
-file_handler = TimedRotatingFileHandler(
-    LOG_FILE, when="midnight", backupCount=3, encoding="utf-8"
-)
+file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
 file_handler.setFormatter(formatter)
 
 console_handler = logging.StreamHandler()
@@ -78,6 +81,15 @@ logger.setLevel(LOG_LEVEL)
 logger.addHandler(file_handler)
 logger.addHandler(console_handler)
 
+# Cleanup old logs (keep last LOG_LIMIT)
+logs = sorted(
+    glob.glob(os.path.join(LOG_PATH, "downloader-*.log")),
+    key=os.path.getmtime,
+)
+for old_log in logs[:-LOG_LIMIT]:
+    os.remove(old_log)
+
+# Reduce verbosity of HTTP libraries
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 logging.getLogger("httpx").propagate = False

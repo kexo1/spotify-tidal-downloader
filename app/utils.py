@@ -3,8 +3,10 @@ import httpx
 import unicodedata
 import json
 import base64
+import os
 
 from pathlib import Path
+from mutagen.flac import FLAC
 
 from app.constants import (
     WINDOWS_DISALLOWED_CHARS,
@@ -72,3 +74,13 @@ def load_json_file(file_path: str) -> dict:
 def save_json_file(file_path: str, data: dict) -> None:
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
+
+
+def is_valid_flac(path: str) -> bool:
+    if not os.path.isfile(path):
+        return False
+    try:
+        FLAC(path)
+        return True
+    except Exception:
+        return False
