@@ -148,7 +148,7 @@ class SpotifyTidalDownloader:
 
     async def _get_queries(
         self, spotify_track_data: dict[str, str], index: int
-    ) -> set[str]:
+    ) -> list[str]:
         query_track_name = (
             f"{spotify_track_data['artist']} - {spotify_track_data['title']}"
         )
@@ -179,7 +179,9 @@ class SpotifyTidalDownloader:
         # Search only artist
         search_queries.append(spotify_track_data["artist"])
 
-        return set(search_queries)
+        return list(
+            dict.fromkeys(search_queries)
+        )  # Remove duplicates while preserving order
 
     async def _search_track(
         self, queries: list[str], spotify_track_data: dict[str, str], index: int
