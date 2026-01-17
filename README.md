@@ -6,16 +6,15 @@
 
 </div>
 
-## 🚀 Features
+## Features
 
 - Downloads tracks from Spotify playlists
 - Downloads synced (.lrc) and unsynced lyrics
 - Embeds correct metadata (Artist, Album, Title, Cover Art)
 - Concurrent downloads for speed
 - Automatic cache and log management
-- Highly configurable
 
-## 📥 Installation
+## Installation
 
 1. **Prerequisites**: Ensure you have [Python 3.9+](https://www.python.org/downloads/) installed.
 2. **Download**: Download the project and unzip it or clone the repository.
@@ -25,7 +24,7 @@
    pip install -r requirements.txt
    ```
 
-## 🛠️ Usage
+## Usage
 
 1. **Export Playlist**: Use [Exportify](https://exportify.net/) to export your Spotify playlist as a CSV file.
 2. **Configure**: Create a `config.json` file in the project directory (next to the `app` folder). You can use the example below.
@@ -38,7 +37,7 @@
 
 4. **Deduplication**: It is **highly recommended** to deduplicate your playlists using [Spotify Dedup](https://spotify-dedup.com/) before exporting to avoid redownloading duplicates.
 
-## ⚙️ Configuration
+## Configuration
 
 Create a `config.json` file in the root directory.
 
@@ -88,8 +87,8 @@ Create a `config.json` file in the root directory.
 ## ⚠️ Known Issues & Notes
 
 - **Accuracy**: Matching Spotify songs to Tidal tracks is not 100% perfect. Titles, albums, or artist names may differ. The tool attempts to match best efforts (~98% accuracy observed).
-- **Region Locks**: Some songs might be available on Spotify but not on the Tidal.
+- **Different platforms**: Some songs might be available on Spotify but not on the Tidal.
 
-## 📄 License
+## License
 
 This project is licensed under the [MIT](/LICENSE) License.

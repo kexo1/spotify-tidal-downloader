@@ -92,3 +92,17 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 logging.getLogger("httpx").propagate = False
 logging.getLogger("httpcore").propagate = False
+
+##################################### Keywords ####################################
+COLLECTION_KEYWORDS = [
+    "greatest hits",
+    "best of",
+    "anthology",
+    "compilation",
+    "collection",
+    "box set",
+    "hits",
+    "classics",
+]
+
+EDIT_KEYWORDS = ["remix", "edit", "slowed", "instrumental", "live"]
