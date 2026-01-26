@@ -276,10 +276,13 @@ class SpotifyTidalDownloader:
         If a suitable match is found, return DownloadTrackData, else return an error dict.
         """
 
+        matched = False
+        spotify_track = SpotifyTrackData(spotify_track_data)
+        tidal_track = None
+
         for tidal_track_source in found_tracks:
             matched = False
 
-            spotify_track = SpotifyTrackData(spotify_track_data)
             tidal_track = TidalTrackData(tidal_track_source)
 
             is_edit = not is_song_edit(spotify_track.title) and is_song_edit(
@@ -337,7 +340,9 @@ class SpotifyTidalDownloader:
             break
 
         if not matched:
-            return generate_no_match_error(spotify_track, tidal_track)
+            if tidal_track:
+                return generate_no_match_error(spotify_track, tidal_track)
+            return {"reason": "No results found."}
 
         download_url = await self._get_download_url(tidal_track.id, spotify_track)
         if not download_url:
@@ -694,7 +699,6 @@ class SpotifyTidalDownloader:
             try:
                 # Create a simple object to mimic DownloadTrackData for _fetch_lyrics
                 track_obj = type("CachedTrack", (), track)()
-                print(track_obj)
                 found_lyrics, unsynced_exists = await self._fetch_lyrics(track_obj)
 
                 self.completed_downloads[track["full_title"]].update(
