@@ -12,6 +12,8 @@ from app.constants import WINDOWS_DISALLOWED_CHARS, WINDOWS_SAFE_FILE_NAMES
 
 
 def format_text_for_os(text: str) -> str:
+    """Format text to be safe for OS file names."""
+
     if not WINDOWS_SAFE_FILE_NAMES:
         return text
 
@@ -21,26 +23,31 @@ def format_text_for_os(text: str) -> str:
 
 
 def normalize(s: str) -> str:
+    """Normalize a string for comparison."""
     s = remove_accents(s.lower())
     return s.strip()
 
 
 def tokens(s: str) -> set[str]:
+    """Tokenize a string into a set of words for comparison."""
     return set(normalize(s).split())
 
 
 def base64_decode(text: str) -> str:
+    """Decode a base64 encoded string."""
     decoded_bytes = base64.b64decode(text)
     return decoded_bytes.decode("utf-8")
 
 
 def remove_accents(text: str) -> str:
+    """Remove accents from a string."""
     return "".join(
         c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn"
     )
 
 
 def get_fastest_instance(urls: list, timeout: int = 5) -> str:
+    """Get the fastest URL from a list of URLs by measuring response time."""
     fastest_url = None
     fastest_time = float("inf")
 
@@ -61,6 +68,7 @@ def get_fastest_instance(urls: list, timeout: int = 5) -> str:
 
 
 def load_json_file(file_path: str) -> dict:
+    """Load JSON data from a file."""
     data = {}
     if Path(file_path).exists():
         with open(file_path, "r", encoding="utf-8") as f:
@@ -69,11 +77,13 @@ def load_json_file(file_path: str) -> dict:
 
 
 def save_json_file(file_path: str, data: dict) -> None:
+    """Save JSON data to a file."""
     with open(file_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4)
+        json.dump(data, f, indent=4, ensure_ascii=False)
 
 
 def is_valid_flac(path: str) -> bool:
+    """Check if a file is a valid FLAC file."""
     if not os.path.isfile(path):
         return False
     try:

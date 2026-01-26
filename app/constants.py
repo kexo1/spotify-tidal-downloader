@@ -34,6 +34,7 @@ DOWNLOAD_UNSYNCED_LYRICS = data["downloader"].get("downloadUnsyncedLyrics", Fals
 CONCURRENT_DOWNLOADS = data["downloader"].get("concurrentDownloads", 3)
 LOG_LIMIT = data["downloader"].get("logLimit", 5)
 LOGGING_LEVEL = data["downloader"].get("loggingLevel", "INFO").upper()
+LYRICS_DOWNLOAD_COUNT = 5
 
 SONG_QUALITY = data["songs"].get("quality", "high")  # options: lossless, high, low
 
@@ -106,3 +107,7 @@ COLLECTION_KEYWORDS = [
 ]
 
 EDIT_KEYWORDS = ["remix", "edit", "slowed", "instrumental", "live"]
+
+##################################### Retry Counts ####################################
+DOWNLOAD_RETRY_COUNT = 3
+API_CALL_RETRY_COUNT = 5
