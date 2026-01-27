@@ -8,13 +8,13 @@ from pathlib import Path
 import httpx
 from mutagen.flac import FLAC
 
-from app.constants import WINDOWS_DISALLOWED_CHARS, WINDOWS_SAFE_FILE_NAMES
+from app.constants import CONFIG_WINDOWS_SAFE_FILE_NAMES, WINDOWS_DISALLOWED_CHARS
 
 
 def format_text_for_os(text: str) -> str:
     """Format text to be safe for OS file names."""
 
-    if not WINDOWS_SAFE_FILE_NAMES:
+    if not CONFIG_WINDOWS_SAFE_FILE_NAMES:
         return text
 
     for char in WINDOWS_DISALLOWED_CHARS:

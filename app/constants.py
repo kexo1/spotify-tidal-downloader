@@ -3,49 +3,92 @@ import json
 import logging
 import os
 from datetime import datetime
+from math import log
 
 #################################### Instance URLs ####################################
-MONOCHROME_API_INSTANCES = [
+INSTANCES_MONOCHROME = [
     "https://tidal-api.binimum.org",
     "https://monochrome-api.samidy.com",
 ]
 
-STREAMING_INSTANCES = [
+INSTANCES_STREAMING = [
     "https://tidal.kinoplus.online",
     "https://triton.squid.wtf",
 ]
 
-LRCLIB_API = "https://lrclib.net/api/get"
+API_LRCLIB = "https://lrclib.net/api/get"
 
 ##################################### Configuration ####################################
 with open("config.json") as f:
     data = json.load(f)
 
-PLAYLIST_FILE = data["paths"].get("playlistFile", "./playlist.csv")
-DOWNLOAD_PATH = data["paths"].get("downloadPath", "./downloads")
-LOG_PATH = data["paths"].get("logPath", "./logs")
-CACHE_PATH = data["paths"].get("cachePath", "./cache")
 
-RETRY_FAILED = data["downloader"].get("retryFailed", True)
-PREFER_TIDAL_NAMING = data["downloader"].get("preferTidalNaming", False)
-WINDOWS_SAFE_FILE_NAMES = data["downloader"].get("windowsSafeFileNames", True)
-DOWNLOAD_LYRICS = data["downloader"].get("downloadLyrics", True)
-DOWNLOAD_UNSYNCED_LYRICS = data["downloader"].get("downloadUnsyncedLyrics", False)
-CONCURRENT_DOWNLOADS = data["downloader"].get("concurrentDownloads", 3)
-LOG_LIMIT = data["downloader"].get("logLimit", 5)
-LOGGING_LEVEL = data["downloader"].get("loggingLevel", "INFO").upper()
-LYRICS_DOWNLOAD_COUNT = 5
+def get_cfg(section, key, default, type_, min_val=None, options=None):
+    """Safely retrieves and validates configuration values."""
 
-SONG_QUALITY = data["songs"].get("quality", "high")  # options: lossless, high, low
+    val = data.get(section, {}).get(key, default)
 
-if LOGGING_LEVEL not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
-    LOGGING_LEVEL = "INFO"
+    # Validate type (e.g., str, int, bool)
+    if not isinstance(val, type_):
+        return default
 
-LOG_LEVEL = logging._nameToLevel.get(LOGGING_LEVEL, logging.INFO)
-PLAYLIST_FILE_PATH = os.path.abspath(PLAYLIST_FILE)
-CACHE_COMPLETED_DOWNLOADS_PATH = os.path.join(CACHE_PATH, "completed.json")
-CACHE_FAILED_DOWNLOADS_PATH = os.path.join(CACHE_PATH, "failed.json")
-os.makedirs(CACHE_PATH, exist_ok=True)
+    # Validate minimum value (for numbers)
+    if min_val is not None and val < min_val:
+        return default
+
+    # Validate allowed options  (song quality, etc.)
+    if options is not None and val.lower() not in options:
+        return default
+
+    return val
+
+
+CONFIG_PLAYLIST_FILE = get_cfg("paths", "playlistFile", "./playlist.csv", str)
+CONFIG_DOWNLOAD_PATH = get_cfg("paths", "downloadPath", "./downloads", str)
+CONFIG_LOG_PATH = get_cfg("paths", "logPath", "./logs", str)
+CONFIG_CACHE_PATH = get_cfg("paths", "cachePath", "./cache", str)
+
+CONFIG_RETRY_FAILED = get_cfg("downloader", "retryFailed", True, bool)
+CONFIG_PREFER_TIDAL_NAMING = get_cfg("downloader", "preferTidalNaming", False, bool)
+CONFIG_WINDOWS_SAFE_FILE_NAMES = get_cfg(
+    "downloader", "windowsSafeFileNames", True, bool
+)
+CONFIG_DOWNLOAD_LYRICS = get_cfg("downloader", "downloadLyrics", True, bool)
+CONFIG_DOWNLOAD_UNSYNCED_LYRICS = get_cfg(
+    "downloader", "downloadUnsyncedLyrics", False, bool
+)
+CONFIG_CONCURRENT_DOWNLOADS = get_cfg(
+    "downloader", "concurrentDownloads", 3, int, min_val=1
+)
+CONFIG_LOG_LIMIT = get_cfg("logging", "logLimit", 5, int, min_val=0)
+
+_log_level_raw = get_cfg(
+    "logging",
+    "level",
+    "info",
+    str,
+    options=[
+        "debug",
+        "info",
+        "warning",
+        "error",
+        "critical",
+    ],
+)
+CONFIG_LOG_LEVEL = _log_level_raw.upper()
+CONFIG_LOG_SKIPPED = get_cfg("logging", "logSkipped", True, bool)
+
+CONFIG_SONG_QUALITY = get_cfg(
+    "songs", "quality", "high", str, options=["lossless", "high", "low"]
+)
+CONFIG_SONG_QUALITY = CONFIG_SONG_QUALITY.lower()
+
+LOG_LEVEL = logging._nameToLevel.get(CONFIG_LOG_LEVEL, logging.INFO)
+PATH_PLAYLIST_FILE = os.path.abspath(CONFIG_PLAYLIST_FILE)
+PATH_CACHE_COMPLETED_DOWNLOADS = os.path.join(CONFIG_CACHE_PATH, "completed.json")
+PATH_CACHE_FAILED_DOWNLOADS = os.path.join(CONFIG_CACHE_PATH, "failed.json")
+os.makedirs(CONFIG_CACHE_PATH, exist_ok=True)
+
 
 ##################################### File Safety #####################################
 WINDOWS_DISALLOWED_CHARS = '<>:"/\\|?*\0'
@@ -61,32 +104,38 @@ SPOTIFY_TO_TIDAL_NAMING = {
 
 
 ###################################### Logging Setup ####################################
-os.makedirs(LOG_PATH, exist_ok=True)
-timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-LOG_FILE = os.path.join(LOG_PATH, f"downloader-{timestamp}.log")
-
 formatter = logging.Formatter(
     "%(asctime)s - %(levelname)s - %(message)s", datefmt="%d/%m/%y %H:%M:%S"
 )
-
-file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
-file_handler.setFormatter(formatter)
 
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(formatter)
 
 logger = logging.getLogger()
 logger.setLevel(LOG_LEVEL)
-logger.addHandler(file_handler)
 logger.addHandler(console_handler)
 
-# Cleanup old logs (keep last LOG_LIMIT)
-logs = sorted(
-    glob.glob(os.path.join(LOG_PATH, "downloader-*.log")),
-    key=os.path.getmtime,
-)
-for old_log in logs[:-LOG_LIMIT]:
-    os.remove(old_log)
+if CONFIG_LOG_LIMIT > 0:
+    os.makedirs(CONFIG_LOG_PATH, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    LOG_FILE = os.path.join(CONFIG_LOG_PATH, f"downloader-{timestamp}.log")
+
+    file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+    # Cleanup old logs (keep last LOG_LIMIT)
+    logs = sorted(
+        glob.glob(os.path.join(CONFIG_LOG_PATH, "downloader-*.log")),
+        key=os.path.getmtime,
+    )
+
+    if len(logs) > CONFIG_LOG_LIMIT:
+        num_files_to_delete = len(logs) - CONFIG_LOG_LIMIT
+        files_to_delete = logs[:num_files_to_delete]
+
+        for old_log in files_to_delete:
+            os.remove(old_log)
 
 # Reduce verbosity of HTTP libraries
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -95,7 +144,7 @@ logging.getLogger("httpx").propagate = False
 logging.getLogger("httpcore").propagate = False
 
 ##################################### Keywords ####################################
-COLLECTION_KEYWORDS = [
+KEYWORDS_SONG_COLLECTIONS = [
     "greatest hits",
     "best of",
     "anthology",
@@ -106,8 +155,9 @@ COLLECTION_KEYWORDS = [
     "classics",
 ]
 
-EDIT_KEYWORDS = ["remix", "edit", "slowed", "instrumental", "live"]
+KEYWORDS_SONG_EDITS = ["remix", "edit", "slowed", "instrumental", "live"]
 
-##################################### Retry Counts ####################################
-DOWNLOAD_RETRY_COUNT = 3
-API_CALL_RETRY_COUNT = 5
+##################################### Limits ####################################
+RETRY_COUNT_DOWNLOAD = 3
+RETRY_COUNT_API = 5
+LYRICS_DOWNLOAD_COUNT = 5

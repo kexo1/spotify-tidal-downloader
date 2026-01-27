@@ -8,7 +8,11 @@ from music_metadata_filter.functions import (
     remove_version,
 )
 
-from app.constants import COLLECTION_KEYWORDS, EDIT_KEYWORDS, SPOTIFY_TO_TIDAL_NAMING
+from app.constants import (
+    KEYWORDS_SONG_COLLECTIONS,
+    KEYWORDS_SONG_EDITS,
+    SPOTIFY_TO_TIDAL_NAMING,
+)
 from app.types import MatchType, SpotifyTrackData, TidalTrackData, TrackFindType
 from app.utils import normalize
 
@@ -80,14 +84,14 @@ def is_song_edit(title: str) -> bool:
     """Check if the title indicates an edited version of a song, such as 'Radio Edit' or 'Club Mix'."""
 
     title_casefold = title.casefold()
-    return any(keyword in title_casefold for keyword in EDIT_KEYWORDS)
+    return any(keyword in title_casefold for keyword in KEYWORDS_SONG_EDITS)
 
 
 def is_collection(title: str) -> bool:
     """Check if the title indicates a collection, such as 'Greatest Hits' or 'Anthology'."""
 
     title_casefold = title.casefold()
-    return any(keyword in title_casefold for keyword in COLLECTION_KEYWORDS)
+    return any(keyword in title_casefold for keyword in KEYWORDS_SONG_COLLECTIONS)
 
 
 def compare_results(search: str, found: str, field: str) -> MatchType:
@@ -143,7 +147,7 @@ def generate_no_match_error(
     """Generate a detailed error message for no match found between Spotify and Tidal tracks."""
 
     return {
-        "reason": "No suitable match found.",
+        "reason": "No suitable match found",
         "comparing_title": f"'{spotify_track.title}' vs '{tidal_track.title}'",
         "comparing_artists": f"'{spotify_track.artist}' vs '{tidal_track.artist}'",
         "comparing_album": f"'{spotify_track.album}' vs '{tidal_track.album}'",

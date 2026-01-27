@@ -5,10 +5,10 @@ import httpx
 import ua_generator
 
 from app.constants import (
-    CONCURRENT_DOWNLOADS,
-    MONOCHROME_API_INSTANCES,
-    SONG_QUALITY,
-    STREAMING_INSTANCES,
+    CONFIG_CONCURRENT_DOWNLOADS,
+    CONFIG_SONG_QUALITY,
+    INSTANCES_MONOCHROME,
+    INSTANCES_STREAMING,
 )
 from app.spotify_tidal_downloader import SpotifyTidalDownloader
 from app.utils import get_fastest_instance
@@ -26,9 +26,9 @@ async def main() -> None:
 
     download_client = httpx.AsyncClient(
         limits=httpx.Limits(
-            max_connections=CONCURRENT_DOWNLOADS
+            max_connections=CONFIG_CONCURRENT_DOWNLOADS
             * 2,  # Extra headroom for cover art downloads
-            max_keepalive_connections=CONCURRENT_DOWNLOADS,
+            max_keepalive_connections=CONFIG_CONCURRENT_DOWNLOADS,
         ),
         timeout=None,  # streaming
     )
@@ -38,13 +38,13 @@ async def main() -> None:
 
     logging.info("#####################################")
     logging.info("Starting Spotify-Tidal Downloader...")
-    logging.info(f"Quality: {SONG_QUALITY.capitalize()}")
-    logging.info(f"Concurrent Downloads: {CONCURRENT_DOWNLOADS}")
+    logging.info(f"Quality: {CONFIG_SONG_QUALITY.capitalize()}")
+    logging.info(f"Concurrent Downloads: {CONFIG_CONCURRENT_DOWNLOADS}")
 
-    api_instance = get_fastest_instance(MONOCHROME_API_INSTANCES)
+    api_instance = get_fastest_instance(INSTANCES_MONOCHROME)
     logging.info(f"API Instance: {api_instance}")
 
-    streaming_instance = get_fastest_instance(STREAMING_INSTANCES)
+    streaming_instance = get_fastest_instance(INSTANCES_STREAMING)
     logging.info(f"Streaming Instance: {streaming_instance}")
 
     downloader = SpotifyTidalDownloader(

@@ -12,7 +12,7 @@
 - Downloads synced (.lrc) and unsynced lyrics
 - Embeds correct metadata (Artist, Album, Title, Cover Art)
 - Concurrent downloads for speed
-- Automatic cache and log management
+- Automatic cache management
 
 ## Installation
 
@@ -56,12 +56,15 @@ Create a `config.json` file in the root directory.
         "windowsSafeFileNames": true,
         "downloadLyrics": true,
         "downloadUnsyncedLyrics": false,
-        "concurrentDownloads": 10,
-        "logLimit": 5,
-        "loggingLevel": "INFO"
+        "concurrentDownloads": 3
     },
     "songs": {
         "quality": "high"
+    },
+    "logging": {
+        "level": "INFO",
+        "logLimit": 5,
+        "logSkipped": true
     }
 }
 ```
@@ -79,10 +82,11 @@ Create a `config.json` file in the root directory.
 | | `windowsSafeFileNames` | Removes invalid characters (`<>:"/\|?*`) from filenames. Essential for Windows users. | `true` |
 | | `downloadLyrics` | Enables downloading of synced lyrics (`.lrc`). | `true` |
 | | `downloadUnsyncedLyrics`| Enables downloading of unsynced lyrics if synced ones are missing. | `false` |
-| | `concurrentDownloads` | Number of songs to download simultaneously. Higher values use more bandwidth/CPU. | `10` |
-| | `logLimit` | Number of recent log files to keep. Older logs are cycled trough. | `5` |
-| | `loggingLevel` | Detail level of logs. Options: `DEBUG`, `INFO`, `WARNING`, `ERROR`. | `INFO` |
+| | `concurrentDownloads` | Number of songs to download simultaneously. Higher values use more bandwidth/CPU. | `3` |
 | **Songs** | `quality` | Audio quality. Options: `low` (96kbps), `high` (320kbps), `lossless` (FLAC). | `high` |
+| **Logging** | `level` | Detail level of logs. Options: `DEBUG`, `INFO`, `WARNING`, `ERROR`. | `INFO` |
+| | `logLimit` | Number of recent log files to keep. Older logs are cycled trough. | `5` |
+| | `logSkipped` | Logs songs that were skipped because they already exist. Can reduce log noise if `false`. | `true` |
 
 ## ⚠️ Known Issues & Notes
 

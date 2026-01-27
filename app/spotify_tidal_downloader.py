@@ -12,18 +12,19 @@ from mutagen.flac import FLAC, Picture
 from mutagen.mp4 import MP4, MP4Cover
 
 from app.constants import (
-    API_CALL_RETRY_COUNT,
-    CACHE_COMPLETED_DOWNLOADS_PATH,
-    CACHE_FAILED_DOWNLOADS_PATH,
-    CONCURRENT_DOWNLOADS,
-    DOWNLOAD_LYRICS,
-    DOWNLOAD_RETRY_COUNT,
-    DOWNLOAD_UNSYNCED_LYRICS,
-    LRCLIB_API,
+    API_LRCLIB,
+    CONFIG_CONCURRENT_DOWNLOADS,
+    CONFIG_DOWNLOAD_LYRICS,
+    CONFIG_DOWNLOAD_UNSYNCED_LYRICS,
+    CONFIG_LOG_SKIPPED,
+    CONFIG_PLAYLIST_FILE,
+    CONFIG_RETRY_FAILED,
+    CONFIG_SONG_QUALITY,
     LYRICS_DOWNLOAD_COUNT,
-    PLAYLIST_FILE,
-    RETRY_FAILED,
-    SONG_QUALITY,
+    PATH_CACHE_COMPLETED_DOWNLOADS,
+    PATH_CACHE_FAILED_DOWNLOADS,
+    RETRY_COUNT_API,
+    RETRY_COUNT_DOWNLOAD,
 )
 from app.matching import (
     cleanse_track,
@@ -67,6 +68,8 @@ class SpotifyTidalDownloader:
             return
 
         logging.info("Starting download workers...")
+        logging.info("#####################################")
+
         workers = self._start_workers()
         lyrics_tasks = []
 
@@ -83,8 +86,8 @@ class SpotifyTidalDownloader:
         if not self.spotify_tracks:
             return False
 
-        self.failed_downloads = load_json_file(CACHE_FAILED_DOWNLOADS_PATH)
-        self.completed_downloads = load_json_file(CACHE_COMPLETED_DOWNLOADS_PATH)
+        self.failed_downloads = load_json_file(PATH_CACHE_FAILED_DOWNLOADS)
+        self.completed_downloads = load_json_file(PATH_CACHE_COMPLETED_DOWNLOADS)
         return True
 
     def _start_workers(self) -> list[asyncio.Task]:
@@ -92,7 +95,7 @@ class SpotifyTidalDownloader:
 
         self.workers = [
             asyncio.create_task(self._download_worker())
-            for _ in range(CONCURRENT_DOWNLOADS)
+            for _ in range(CONFIG_CONCURRENT_DOWNLOADS)
         ]
         return self.workers
 
@@ -108,11 +111,15 @@ class SpotifyTidalDownloader:
         if self._is_downloaded(full_title):
             if task := self._check_missing_lyrics(spotify_track):
                 lyrics_tasks.append(task)
-            else:
+            elif CONFIG_LOG_SKIPPED:
                 logging.info(f"[{index:02d}] Skipping downloaded track: {full_title}")
             return
 
-        if not RETRY_FAILED and self._is_failed(full_title):
+        if (
+            not CONFIG_RETRY_FAILED
+            and CONFIG_LOG_SKIPPED
+            and self._is_failed(full_title)
+        ):
             logging.info(f"[{index:02d}] Skipping failed track: {full_title}")
             return
 
@@ -121,7 +128,7 @@ class SpotifyTidalDownloader:
     def _check_missing_lyrics(self, spotify_track: dict):
         """Check if lyrics are missing for a downloaded track and queue lyrics download if needed."""
 
-        if not DOWNLOAD_LYRICS:
+        if not CONFIG_DOWNLOAD_LYRICS:
             return None
 
         full_title = spotify_track["full_title"]
@@ -140,7 +147,7 @@ class SpotifyTidalDownloader:
         find_unsynced = (
             lyrics_missing is True
             and unsynced_exists is not False
-            and DOWNLOAD_UNSYNCED_LYRICS
+            and CONFIG_DOWNLOAD_UNSYNCED_LYRICS
         )
 
         if find_lyrics or find_unsynced:
@@ -199,7 +206,7 @@ class SpotifyTidalDownloader:
             logging.debug("----- Match Debugging -----")
             logging.debug(f"Searching Monochrome for query: '{query}'")
 
-            for _ in range(API_CALL_RETRY_COUNT):
+            for _ in range(RETRY_COUNT_API):
                 try:
                     response = await self.session.get(
                         f"{self.api_instance}/search/", params={"s": query}
@@ -209,6 +216,10 @@ class SpotifyTidalDownloader:
                 except Exception:
                     await asyncio.sleep(1)
             else:
+                continue
+
+            # No results found for this query
+            if not found_tracks:
                 continue
 
             download_track_data = await self._match_track(
@@ -222,7 +233,7 @@ class SpotifyTidalDownloader:
             # If previously failed, remove from failed downloads cache
             if self.failed_downloads.get(full_title):
                 del self.failed_downloads[full_title]
-                save_json_file(CACHE_FAILED_DOWNLOADS_PATH, self.failed_downloads)
+                save_json_file(PATH_CACHE_FAILED_DOWNLOADS, self.failed_downloads)
 
             return download_track_data
 
@@ -276,10 +287,7 @@ class SpotifyTidalDownloader:
         If a suitable match is found, return DownloadTrackData, else return an error dict.
         """
 
-        matched = False
         spotify_track = SpotifyTrackData(spotify_track_data)
-        tidal_track = None
-
         for tidal_track_source in found_tracks:
             matched = False
 
@@ -340,14 +348,12 @@ class SpotifyTidalDownloader:
             break
 
         if not matched:
-            if tidal_track:
-                return generate_no_match_error(spotify_track, tidal_track)
-            return {"reason": "No results found."}
+            return generate_no_match_error(spotify_track, tidal_track)
 
         download_url = await self._get_download_url(tidal_track.id, spotify_track)
         if not download_url:
             return {
-                "reason": f"Failed to get download URL from streaming instance for track: {spotify_track.full_title}.",
+                "reason": "Failed to get download URL from streaming instance",
             }
 
         if tidal_track.album_id:
@@ -364,7 +370,7 @@ class SpotifyTidalDownloader:
 
         if not self.failed_downloads.get(full_title):
             self.failed_downloads[full_title] = reason
-            save_json_file(CACHE_FAILED_DOWNLOADS_PATH, self.failed_downloads)
+            save_json_file(PATH_CACHE_FAILED_DOWNLOADS, self.failed_downloads)
 
     def _cache_completed_download(
         self,
@@ -384,18 +390,19 @@ class SpotifyTidalDownloader:
             tidal_album=track_data.tidal_album,
             duration=track_data.duration,
         )
-        save_json_file(CACHE_COMPLETED_DOWNLOADS_PATH, self.completed_downloads)
+        save_json_file(PATH_CACHE_COMPLETED_DOWNLOADS, self.completed_downloads)
 
     async def _get_download_url(
         self, track_id: str, spotify_track: SpotifyTrackData
     ) -> str:
         """Get the download URL for a given Tidal track ID from the streaming instance."""
-        error = ""
-        for _ in range(API_CALL_RETRY_COUNT):
+
+        error = "No response"
+        for _ in range(RETRY_COUNT_API):
             try:
                 response = await self.session.get(
                     f"{self.streaming_instance}/track/",
-                    params={"id": track_id, "quality": SONG_QUALITY.upper()},
+                    params={"id": track_id, "quality": CONFIG_SONG_QUALITY.upper()},
                 )
                 data = response.json().get("data")
                 if not data:
@@ -410,7 +417,7 @@ class SpotifyTidalDownloader:
                 await asyncio.sleep(1)
 
         logging.error(
-            f"[{spotify_track.index:02d}] Error while fetching download URL for track {spotify_track.title}: {error}"
+            f"[{spotify_track.index:02d}] Failed to fetch download URL for track {spotify_track.title}: {error}"
         )
         return ""
 
@@ -429,8 +436,8 @@ class SpotifyTidalDownloader:
     ) -> dict:
         """Fetch album data to get the number of tracks and release date."""
 
-        error = ""
-        for _ in range(API_CALL_RETRY_COUNT):
+        error = "No response"
+        for _ in range(RETRY_COUNT_API):
             try:
                 response = await self.session.get(
                     f"{self.api_instance}/album/",
@@ -475,7 +482,7 @@ class SpotifyTidalDownloader:
 
                 downloaded = False
                 error = None
-                for _ in range(DOWNLOAD_RETRY_COUNT):
+                for _ in range(RETRY_COUNT_DOWNLOAD):
                     try:
                         async with client.stream("GET", track_data.url) as response:
                             response.raise_for_status()
@@ -509,13 +516,13 @@ class SpotifyTidalDownloader:
                             "reason": f"Post-download error: {e}"
                         }
                         save_json_file(
-                            CACHE_FAILED_DOWNLOADS_PATH, self.failed_downloads
+                            PATH_CACHE_FAILED_DOWNLOADS, self.failed_downloads
                         )
                 else:
                     self.failed_downloads[track_data.full_title] = {
                         "reason": f"Failed to download: {error}"
                     }
-                    save_json_file(CACHE_FAILED_DOWNLOADS_PATH, self.failed_downloads)
+                    save_json_file(PATH_CACHE_FAILED_DOWNLOADS, self.failed_downloads)
 
                 self.download_queue.task_done()
 
@@ -603,7 +610,7 @@ class SpotifyTidalDownloader:
         """Add metadata to FLAC file."""
         if not is_valid_flac(save_path):
             logging.warning(
-                f"Skipping metadata for invalid FLAC file: {track_data.title}.flac"
+                f"Ignoring metadata for invalid FLAC file: {track_data.title}.flac"
             )
             return
 
@@ -632,7 +639,7 @@ class SpotifyTidalDownloader:
         """
 
         found_lyrics, unsynced_exists = False, None
-        if not DOWNLOAD_LYRICS:
+        if not CONFIG_DOWNLOAD_LYRICS:
             return found_lyrics, unsynced_exists
 
         params = {
@@ -642,12 +649,12 @@ class SpotifyTidalDownloader:
             "duration": track.duration,
         }
         data = {}
-        error = ""
+        error = "No response"
 
-        for _ in range(API_CALL_RETRY_COUNT):
+        for _ in range(RETRY_COUNT_API):
             try:
                 response = await self.session.get(
-                    LRCLIB_API,
+                    API_LRCLIB,
                     params=params,
                 )
                 data = response.json()
@@ -657,22 +664,26 @@ class SpotifyTidalDownloader:
                 await asyncio.sleep(1)
         else:
             logging.error(
-                f"[{track.index:02d}] Error while fetching lyrics for track {track.full_title}: {error}"
+                f"[{track.index:02d}] Failed to fetch lyrics for track {track.full_title}: {error}"
             )
             return found_lyrics, unsynced_exists
 
+        lyrics_type = "synced"
         lyrics = data.get("syncedLyrics", "")
-        if not lyrics and DOWNLOAD_UNSYNCED_LYRICS:
-            lyrics = data.get("plainLyrics", "")
 
-        # If lyrics are still not found and user only wants synced lyrics, return
-        if not lyrics and not DOWNLOAD_UNSYNCED_LYRICS:
+        # If synced lyrics are not found and user only wants synced lyrics, return
+        if not lyrics and not CONFIG_DOWNLOAD_UNSYNCED_LYRICS:
             logging.info(
                 f"[{track.index:02d}] No synced lyrics found for: {track.full_title}"
             )
             # Check if unsynced lyrics exist for future reference
             unsynced_exists = data.get("plainLyrics") is not None
             return found_lyrics, unsynced_exists
+
+        # If synced lyrics are not found, try to get unsynced lyrics if user opted in
+        if not lyrics and CONFIG_DOWNLOAD_UNSYNCED_LYRICS:
+            lyrics = data.get("plainLyrics", "")
+            lyrics_type = "unsynced"
 
         # If no lyrics found at all
         if not lyrics:
@@ -686,7 +697,9 @@ class SpotifyTidalDownloader:
 
         # If synced exists, unsynced_exists will exist too
         found_lyrics, unsynced_exists = True, True
-        logging.info(f"[{track.index:02d}] Lyrics downloaded for: {track.full_title}")
+        logging.info(
+            f"[{track.index:02d}] Lyrics ({lyrics_type}) downloaded for: {track.full_title}"
+        )
 
         return found_lyrics, unsynced_exists
 
@@ -705,7 +718,7 @@ class SpotifyTidalDownloader:
                     lyrics=found_lyrics,
                     unsynced_exists=unsynced_exists,
                 )
-                save_json_file(CACHE_COMPLETED_DOWNLOADS_PATH, self.completed_downloads)
+                save_json_file(PATH_CACHE_COMPLETED_DOWNLOADS, self.completed_downloads)
             except Exception as e:
                 logging.error(
                     f"[{track['index']:02d}] Failed to fetch lyrics for {track['full_title']}: {e}"
@@ -744,11 +757,11 @@ def load_spotify_playlist() -> dict[int, dict[str, str]]:
     """
 
     tracks = {}
-    if not os.path.exists(PLAYLIST_FILE):
-        logging.error(f"❌ File not found: {PLAYLIST_FILE}")
+    if not os.path.exists(CONFIG_PLAYLIST_FILE):
+        logging.error(f"❌ File not found: {CONFIG_PLAYLIST_FILE}")
         return tracks
 
-    with open(PLAYLIST_FILE, newline="", encoding="utf-8-sig") as f:
+    with open(CONFIG_PLAYLIST_FILE, newline="", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
         headers = {h.lower().strip(): h for h in reader.fieldnames}
 
@@ -766,7 +779,7 @@ def load_spotify_playlist() -> dict[int, dict[str, str]]:
             track = fix_spotify_to_tidal_namings(row[track_col], "title")
             artist = fix_spotify_to_tidal_namings(row[artist_col], "artist")
             artists_all = artist.split(";") if ";" in artist else [artist]
-            artist = artists_all[0] if artists_all else artist
+            artist = artists_all[0]
             album = fix_spotify_to_tidal_namings(row.get(album_col, ""), "album")
 
             if artist and track:

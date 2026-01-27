@@ -1,7 +1,11 @@
 import os
 from typing import Optional, TypedDict
 
-from app.constants import DOWNLOAD_PATH, PREFER_TIDAL_NAMING, SONG_QUALITY
+from app.constants import (
+    CONFIG_DOWNLOAD_PATH,
+    CONFIG_PREFER_TIDAL_NAMING,
+    CONFIG_SONG_QUALITY,
+)
 from app.utils import format_text_for_os
 
 
@@ -37,7 +41,7 @@ def get_artist_names(artists) -> list[str]:
 
 def get_download_path(artist: str, album: str) -> str:
     return os.path.join(
-        DOWNLOAD_PATH,
+        CONFIG_DOWNLOAD_PATH,
         format_text_for_os(artist),
         format_text_for_os(album),
     )
@@ -80,13 +84,15 @@ class DownloadTrackData:
         spotify_data: SpotifyTrackData,
         tidal_data: TidalTrackData,
     ):
-        title = tidal_data.title if PREFER_TIDAL_NAMING else spotify_data.title
+        title = tidal_data.title if CONFIG_PREFER_TIDAL_NAMING else spotify_data.title
         self.title = format_text_for_os(title)
         self.full_title = spotify_data.full_title
         self.spotify_title = spotify_data.title
         self.tidal_title = tidal_data.title
 
-        self.artist = tidal_data.artist if PREFER_TIDAL_NAMING else spotify_data.artist
+        self.artist = (
+            tidal_data.artist if CONFIG_PREFER_TIDAL_NAMING else spotify_data.artist
+        )
         self.spotify_artist = spotify_data.artist
         self.spotify_artists = spotify_data.artists
         tidal_artists = tidal_data.artists
@@ -94,7 +100,9 @@ class DownloadTrackData:
             ", ".join(tidal_artists) if len(tidal_artists) > 1 else tidal_data.artist
         )  # Artist1, Artist2 or Artist1
 
-        self.album = tidal_data.album if PREFER_TIDAL_NAMING else spotify_data.album
+        self.album = (
+            tidal_data.album if CONFIG_PREFER_TIDAL_NAMING else spotify_data.album
+        )
         self.tidal_album = tidal_data.album
 
         self.cover = tidal_data.cover
@@ -104,6 +112,8 @@ class DownloadTrackData:
         self.release_date = tidal_data.release_date
         self.duration = tidal_data.duration
 
-        self.extension = ".flac" if SONG_QUALITY.upper() == "LOSSLESS" else ".m4a"
+        self.extension = (
+            ".flac" if CONFIG_SONG_QUALITY.upper() == "LOSSLESS" else ".m4a"
+        )
         self.url = download_url
         self.download_path = get_download_path(self.artist, self.album)
