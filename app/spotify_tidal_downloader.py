@@ -20,6 +20,7 @@ from app.constants import (
     CONFIG_PLAYLIST_FILE,
     CONFIG_RETRY_FAILED,
     CONFIG_SONG_QUALITY,
+    CONFIG_SYNC,
     LYRICS_DOWNLOAD_COUNT,
     PATH_CACHE_COMPLETED_DOWNLOADS,
     PATH_CACHE_FAILED_DOWNLOADS,
@@ -67,8 +68,9 @@ class SpotifyTidalDownloader:
         if not self._initialize_resources():
             return
 
-        logging.info("Starting download workers...")
         logging.info("#####################################")
+
+        self._sync_tracks()
 
         workers = self._start_workers()
         lyrics_tasks = []
@@ -78,6 +80,64 @@ class SpotifyTidalDownloader:
 
         await self._finish_tasks(lyrics_tasks, workers)
         self._log_completion_stats()
+
+    def _sync_tracks(self) -> None:
+        """Sync previously downloaded tracks with the current Spotify playlist.
+        Remove previously downloaded tracks that are no longer in the playlist from the directory and cache.
+        """
+
+        if not self.completed_downloads or not CONFIG_SYNC:
+            return
+
+        current_titles = {track["full_title"] for track in self.spotify_tracks.values()}
+
+        completed_cached_titles = self.completed_downloads.keys()
+        completed_tracks_to_remove = completed_cached_titles - current_titles
+
+        if self.failed_downloads:
+            failed_cached_titles = self.failed_downloads.keys()
+            failed_tracks_to_remove = failed_cached_titles - current_titles
+
+            for title in failed_tracks_to_remove:
+                del self.failed_downloads[title]
+                logging.info(
+                    f"Removed failed track from cache no longer in playlist: {title}"
+                )
+
+        for title in completed_tracks_to_remove:
+            path = Path(self.completed_downloads[title]["path"])
+            lyrics_path = path.with_suffix(".lrc")
+
+            self._delete_track(path, title)
+            self._delete_track(lyrics_path, f"{title} (Lyrics)")
+
+            del self.completed_downloads[title]
+
+        if completed_tracks_to_remove:
+            save_json_file(PATH_CACHE_COMPLETED_DOWNLOADS, self.completed_downloads)
+
+    def _delete_track(self, path: Path, title: str) -> None:
+        """Delete a track file from the filesystem."""
+        if not os.path.exists(path):
+            return
+
+        try:
+            os.remove(path)
+            logging.info(f"Deleted file no longer in playlist: {title}")
+        except Exception as e:
+            logging.error(f"Failed to delete file {title}: {e}")
+
+        # Also remove empty parent directories up to the download path
+        parent_dir = os.path.dirname(path)
+        try:
+            while (
+                parent_dir and os.path.isdir(parent_dir) and not os.listdir(parent_dir)
+            ):
+                folder_name = os.path.basename(parent_dir)
+                os.rmdir(parent_dir)
+                parent_dir = os.path.dirname(parent_dir)
+        except Exception as e:
+            logging.error(f"Failed to remove empty directory {folder_name}: {e}")
 
     def _initialize_resources(self) -> bool:
         """Initialize resources: load Spotify playlist and caches."""
@@ -225,10 +285,13 @@ class SpotifyTidalDownloader:
             download_track_data = await self._match_track(
                 found_tracks, spotify_track_data
             )
-            # If error dict is returned, continue to next found track
+            # If error dict is returned, it's a error
             if type(download_track_data) is dict:
                 error = download_track_data
-                continue
+                if error["reason"] == "No suitable match found":
+                    continue
+
+                break  # Break on fetching error, no reason to continue searching
 
             # If previously failed, remove from failed downloads cache
             if self.failed_downloads.get(full_title):
@@ -356,8 +419,13 @@ class SpotifyTidalDownloader:
                 "reason": "Failed to get download URL from streaming instance",
             }
 
-        if tidal_track.album_id:
-            await self._get_additional_track_data(tidal_track, spotify_track)
+        fetch_album_data_success = await self._get_additional_track_data(
+            tidal_track, spotify_track
+        )
+        if not fetch_album_data_success:
+            return {
+                "reason": "Failed to fetch album metadata after matching, try again next run.",
+            }
 
         track_data = DownloadTrackData(download_url, spotify_track, tidal_track)
         logging.info(
@@ -423,13 +491,19 @@ class SpotifyTidalDownloader:
 
     async def _get_additional_track_data(
         self, tidal_track: TidalTrackData, spotify_track: SpotifyTrackData
-    ) -> dict:
+    ) -> bool:
         """Fetch additional track data such as number of tracks in album and release date after a successful match."""
         album_data = await self.fetch_album_data(tidal_track.album_id, spotify_track)
+
+        if not album_data:
+            return False
+
         tidal_track.number_of_tracks = album_data.get("numberOfTracks", 0)
         release_date = album_data.get("releaseDate")
         if release_date:
             tidal_track.release_date = release_date.split("-")[0]
+
+        return True
 
     async def fetch_album_data(
         self, album_id: int, spotify_track: SpotifyTrackData
@@ -444,7 +518,7 @@ class SpotifyTidalDownloader:
                     params={"id": album_id},
                 )
                 data = response.json()
-                if data.get("detail"):
+                if data.get("detail") == "Upstream rate limited":
                     error = "Rate limited, please try again later."
                     continue
 
@@ -455,7 +529,7 @@ class SpotifyTidalDownloader:
                 await asyncio.sleep(1)
 
         logging.error(
-            f"[{spotify_track.index:02d}] Error fetching album data for album ID {album_id}: {error}"
+            f"[{spotify_track.index:02d}] Error fetching album data for track {spotify_track.full_title}: {error}"
         )
         return {}
 
@@ -758,7 +832,7 @@ def load_spotify_playlist() -> dict[int, dict[str, str]]:
 
     tracks = {}
     if not os.path.exists(CONFIG_PLAYLIST_FILE):
-        logging.error(f"❌ File not found: {CONFIG_PLAYLIST_FILE}")
+        logging.error(f"Playlist file not found: {CONFIG_PLAYLIST_FILE}")
         return tracks
 
     with open(CONFIG_PLAYLIST_FILE, newline="", encoding="utf-8-sig") as f:

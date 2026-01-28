@@ -19,8 +19,48 @@ INSTANCES_STREAMING = [
 API_LRCLIB = "https://lrclib.net/api/get"
 
 ##################################### Configuration ####################################
-with open("config.json") as f:
-    data = json.load(f)
+DEFAULT_CONFIG = {
+    "paths": {
+        "playlistFile": "./playlist.csv",
+        "downloadPath": "./downloads",
+        "cachePath": "./cache",
+        "logPath": "./logs",
+    },
+    "downloader": {
+        "sync": False,
+        "retryFailed": True,
+        "preferTidalNaming": False,
+        "windowsSafeFileNames": True,
+        "concurrentDownloads": 10,
+    },
+    "songs": {
+        "quality": "high",
+        "lyrics": False,
+        "unsyncedLyrics": False,
+    },
+    "logging": {
+        "fileLimit": 5,
+        "level": "INFO",
+        "logSkipped": True,
+    },
+}
+
+
+def load_config():
+    if not os.path.exists("config.json"):
+        with open("config.json", "w") as f:
+            json.dump(DEFAULT_CONFIG, f, indent=4)
+        print(
+            "Config file was missing. A new one has been created with default values."
+        )
+        print("Please check config.json and restart the program.")
+        os._exit(1)
+
+    with open("config.json") as f:
+        return json.load(f)
+
+
+data = load_config()
 
 
 def get_cfg(section, key, default, type_, min_val=None, options=None):
@@ -43,26 +83,33 @@ def get_cfg(section, key, default, type_, min_val=None, options=None):
     return val
 
 
+# Path Configurations
 CONFIG_PLAYLIST_FILE = get_cfg("paths", "playlistFile", "./playlist.csv", str)
 CONFIG_DOWNLOAD_PATH = get_cfg("paths", "downloadPath", "./downloads", str)
-CONFIG_LOG_PATH = get_cfg("paths", "logPath", "./logs", str)
 CONFIG_CACHE_PATH = get_cfg("paths", "cachePath", "./cache", str)
+CONFIG_LOG_PATH = get_cfg("paths", "logPath", "./logs", str)
 
+# Downloader Configurations
+CONFIG_SYNC = get_cfg("downloader", "sync", False, bool)
 CONFIG_RETRY_FAILED = get_cfg("downloader", "retryFailed", True, bool)
 CONFIG_PREFER_TIDAL_NAMING = get_cfg("downloader", "preferTidalNaming", False, bool)
 CONFIG_WINDOWS_SAFE_FILE_NAMES = get_cfg(
     "downloader", "windowsSafeFileNames", True, bool
 )
-CONFIG_DOWNLOAD_LYRICS = get_cfg("downloader", "downloadLyrics", True, bool)
-CONFIG_DOWNLOAD_UNSYNCED_LYRICS = get_cfg(
-    "downloader", "downloadUnsyncedLyrics", False, bool
-)
 CONFIG_CONCURRENT_DOWNLOADS = get_cfg(
-    "downloader", "concurrentDownloads", 3, int, min_val=1
+    "downloader", "concurrentDownloads", 10, int, min_val=1
 )
-CONFIG_LOG_LIMIT = get_cfg("logging", "logLimit", 5, int, min_val=0)
 
-_log_level_raw = get_cfg(
+# Song Configurations
+CONFIG_SONG_QUALITY = get_cfg(
+    "songs", "quality", "high", str, options=["lossless", "high", "low"]
+)
+CONFIG_SONG_QUALITY = CONFIG_SONG_QUALITY.lower()
+CONFIG_DOWNLOAD_LYRICS = get_cfg("songs", "lyrics", False, bool)
+CONFIG_DOWNLOAD_UNSYNCED_LYRICS = get_cfg("songs", "unsyncedLyrics", False, bool)
+
+# Logging Configurations
+CONFIG_LOG_LEVEL = get_cfg(
     "logging",
     "level",
     "info",
@@ -75,13 +122,9 @@ _log_level_raw = get_cfg(
         "critical",
     ],
 )
-CONFIG_LOG_LEVEL = _log_level_raw.upper()
+CONFIG_LOG_LEVEL = CONFIG_LOG_LEVEL.upper()
+CONFIG_LOG_LIMIT = get_cfg("logging", "fileLimit", 5, int, min_val=0)
 CONFIG_LOG_SKIPPED = get_cfg("logging", "logSkipped", True, bool)
-
-CONFIG_SONG_QUALITY = get_cfg(
-    "songs", "quality", "high", str, options=["lossless", "high", "low"]
-)
-CONFIG_SONG_QUALITY = CONFIG_SONG_QUALITY.lower()
 
 LOG_LEVEL = logging._nameToLevel.get(CONFIG_LOG_LEVEL, logging.INFO)
 PATH_PLAYLIST_FILE = os.path.abspath(CONFIG_PLAYLIST_FILE)

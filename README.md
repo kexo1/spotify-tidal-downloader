@@ -39,7 +39,11 @@
 
 ## Configuration
 
-Create a `config.json` file in the root directory.
+The application requires a `config.json` file in the **root directory** of the project.
+
+You can set it up in two ways:
+1.  **Automatic:** Run the script once. It will automatically create a `config.json` file with default settings if one doesn't exist.
+2.  **Manual:** Copy the `config.json` provided in the repository, or create one manually using the example below.
 
 ### Example Configuration
 ```json
@@ -51,19 +55,20 @@ Create a `config.json` file in the root directory.
         "logPath": "./logs"
     },
     "downloader": {
+        "sync": false,
         "retryFailed": true,
         "preferTidalNaming": false,
         "windowsSafeFileNames": true,
-        "downloadLyrics": true,
-        "downloadUnsyncedLyrics": false,
-        "concurrentDownloads": 3
+        "concurrentDownloads": 10
     },
     "songs": {
-        "quality": "high"
+        "quality": "high",
+        "lyrics": false,
+        "unsyncedLyrics": false
     },
     "logging": {
+        "fileLimit": 5,
         "level": "INFO",
-        "logLimit": 5,
         "logSkipped": true
     }
 }
@@ -77,15 +82,16 @@ Create a `config.json` file in the root directory.
 | | `downloadPath` | Directory where songs will be downloaded. | `./downloads` |
 | | `cachePath` | Directory for storing download cache (completed/failed logs). | `./cache` |
 | | `logPath` | Directory for application logs. | `./logs` |
-| **Downloader** | `retryFailed` | If `true`, the downloader will attempt to redownload songs that failed in previous runs. | `true` |
+| **Downloader** | `sync` | If `true`, removes downloaded tracks locally if they are removed from the playlist. | `false` |
+| | `retryFailed` | If `true`, the downloader will attempt to redownload songs that failed in previous runs. | `true` |
 | | `preferTidalNaming` | If `true`, uses Tidal's naming (Title/Artist) instead of Spotify's. | `false` |
 | | `windowsSafeFileNames` | Removes invalid characters (`<>:"/\|?*`) from filenames. Essential for Windows users. | `true` |
-| | `downloadLyrics` | Enables downloading of synced lyrics (`.lrc`). | `true` |
-| | `downloadUnsyncedLyrics`| Enables downloading of unsynced lyrics if synced ones are missing. | `false` |
-| | `concurrentDownloads` | Number of songs to download simultaneously. Higher values use more bandwidth/CPU. | `3` |
+| | `concurrentDownloads` | Number of songs to download simultaneously. Higher values use more bandwidth/CPU. | `10` |
 | **Songs** | `quality` | Audio quality. Options: `low` (96kbps), `high` (320kbps), `lossless` (FLAC). | `high` |
+| | `lyrics` | Enables downloading of synced lyrics (`.lrc`). | `false` |
+| | `unsyncedLyrics`| Enables downloading of unsynced lyrics if synced ones are missing. | `false` |
 | **Logging** | `level` | Detail level of logs. Options: `DEBUG`, `INFO`, `WARNING`, `ERROR`. | `INFO` |
-| | `logLimit` | Number of recent log files to keep. Older logs are cycled trough. | `5` |
+| | `fileLimit` | Number of recent log files to keep. Older logs are cycled trough. | `5` |
 | | `logSkipped` | Logs songs that were skipped because they already exist. Can reduce log noise if `false`. | `true` |
 
 > [!Important]

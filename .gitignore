@@ -1,9 +1,9 @@
 playlist.csv
-config.json
 
 cache/
 logs/
 .vscode/
+my-config/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
