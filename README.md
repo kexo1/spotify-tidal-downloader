@@ -88,11 +88,9 @@ Create a `config.json` file in the root directory.
 | | `logLimit` | Number of recent log files to keep. Older logs are cycled trough. | `5` |
 | | `logSkipped` | Logs songs that were skipped because they already exist. Can reduce log noise if `false`. | `true` |
 
-## ⚠️ Known Issues & Notes
-
-- **Accuracy**: Matching Spotify songs to Tidal tracks is not 100% perfect. Titles, albums, or artist names may differ. The tool attempts to match best efforts (~98% accuracy observed).
-- **Different platforms**: Some songs might be available on Spotify but not on the Tidal.
-
+> [!Important]
+> Matching Spotify songs to Tidal tracks is not 100% perfect. Titles, albums, or artist names may differ. The tool attempts to match best efforts (~98% accuracy observed).<br>
+> Some songs might be available on Spotify but not on the Tidal.
 ## License
 
 This project is licensed under the [MIT](/LICENSE) License.

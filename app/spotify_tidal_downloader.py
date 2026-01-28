@@ -445,7 +445,7 @@ class SpotifyTidalDownloader:
                 )
                 data = response.json()
                 if data.get("detail"):
-                    error = "Rate limited."
+                    error = "Rate limited, please try again later."
                     continue
 
                 data = data.get("data", {})
