@@ -89,8 +89,10 @@ Create a `config.json` file in the root directory.
 | | `logSkipped` | Logs songs that were skipped because they already exist. Can reduce log noise if `false`. | `true` |
 
 > [!Important]
-> Matching Spotify songs to Tidal tracks is not 100% perfect. Titles, albums, or artist names may differ. The tool attempts to match best efforts (~98% accuracy observed).<br>
+> **Matching Spotify songs to Tidal tracks** is not 100 % perfect.  
+> **Titles, albums, or artist names may differ.** The tool attempts to match best efforts (~98 % accuracy observed).<br>
 > Some songs might be available on Spotify but not on the Tidal.
+
 
 ## License
 
