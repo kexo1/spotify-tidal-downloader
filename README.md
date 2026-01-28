@@ -91,6 +91,7 @@ Create a `config.json` file in the root directory.
 > [!Important]
 > Matching Spotify songs to Tidal tracks is not 100% perfect. Titles, albums, or artist names may differ. The tool attempts to match best efforts (~98% accuracy observed).<br>
 > Some songs might be available on Spotify but not on the Tidal.
+
 ## License
 
 This project is licensed under the [MIT](/LICENSE) License.
