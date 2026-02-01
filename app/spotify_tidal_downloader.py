@@ -21,6 +21,7 @@ from app.constants import (
     CONFIG_RETRY_FAILED,
     CONFIG_SONG_QUALITY,
     CONFIG_SYNC,
+    ERROR_RATE_LIMITED,
     LYRICS_DOWNLOAD_COUNT,
     PATH_CACHE_COMPLETED_DOWNLOADS,
     PATH_CACHE_FAILED_DOWNLOADS,
@@ -175,12 +176,14 @@ class SpotifyTidalDownloader:
                 logging.info(f"[{index:02d}] Skipping downloaded track: {full_title}")
             return
 
+        # If it's rate limited previously, always retry
         if (
             not CONFIG_RETRY_FAILED
-            and CONFIG_LOG_SKIPPED
             and self._is_failed(full_title)
+            and self._fail_reason(full_title) != ERROR_RATE_LIMITED
         ):
-            logging.info(f"[{index:02d}] Skipping failed track: {full_title}")
+            if CONFIG_LOG_SKIPPED:
+                logging.info(f"[{index:02d}] Skipping failed track: {full_title}")
             return
 
         await self._queue_track_for_download(spotify_track)
@@ -423,9 +426,7 @@ class SpotifyTidalDownloader:
             tidal_track, spotify_track
         )
         if not fetch_album_data_success:
-            return {
-                "reason": "Failed to fetch album metadata after matching, try again next run.",
-            }
+            return {"reason": ERROR_RATE_LIMITED}
 
         track_data = DownloadTrackData(download_url, spotify_track, tidal_track)
         logging.info(
@@ -815,6 +816,14 @@ class SpotifyTidalDownloader:
     def _is_failed(self, full_title: str) -> bool:
         """Check if the track download has previously failed."""
         return self.failed_downloads.get(full_title) is not None
+
+    def _fail_reason(self, full_title: str) -> str | None:
+        """Get the reason for a failed download if it exists."""
+
+        failed_entry = self.failed_downloads.get(full_title)
+        if failed_entry:
+            return failed_entry.get("reason")
+        return None
 
     async def shutdown(self) -> None:
         """Stop all workers and cleanup."""

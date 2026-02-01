@@ -1,9 +1,12 @@
 playlist.csv
+.stignore
+ruff.toml
 
 cache/
 logs/
 .vscode/
 my-config/
+.stfolder/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

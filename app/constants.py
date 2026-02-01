@@ -3,7 +3,6 @@ import json
 import logging
 import os
 from datetime import datetime
-from math import log
 
 #################################### Instance URLs ####################################
 INSTANCES_MONOCHROME = [
@@ -204,3 +203,8 @@ KEYWORDS_SONG_EDITS = ["remix", "edit", "slowed", "instrumental", "live"]
 RETRY_COUNT_DOWNLOAD = 3
 RETRY_COUNT_API = 5
 LYRICS_DOWNLOAD_COUNT = 5
+
+##################################### Errors ####################################
+ERROR_RATE_LIMITED = (
+    "Failed to fetch album metadata after matching, try again next run."
+)

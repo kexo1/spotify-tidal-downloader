@@ -14,6 +14,11 @@
 - Concurrent downloads for speed
 - Automatic cache management
 
+> [!Important]
+> **Matching Spotify songs to Tidal tracks** is not 100 % perfect.  
+> **Titles, albums, or artist names may differ.** The tool attempts to match best efforts (~98 % accuracy observed).<br>
+> Some songs might be available on Spotify but not on the Tidal.
+
 ## Installation
 
 1. **Prerequisites**: Ensure you have [Python 3.9+](https://www.python.org/downloads/) installed.
@@ -93,12 +98,6 @@ You can set it up in two ways:
 | **Logging** | `level` | Detail level of logs. Options: `DEBUG`, `INFO`, `WARNING`, `ERROR`. | `INFO` |
 | | `fileLimit` | Number of recent log files to keep. Older logs are cycled trough. | `5` |
 | | `logSkipped` | Logs songs that were skipped because they already exist. Can reduce log noise if `false`. | `true` |
-
-> [!Important]
-> **Matching Spotify songs to Tidal tracks** is not 100 % perfect.  
-> **Titles, albums, or artist names may differ.** The tool attempts to match best efforts (~98 % accuracy observed).<br>
-> Some songs might be available on Spotify but not on the Tidal.
-
 
 ## License
 
