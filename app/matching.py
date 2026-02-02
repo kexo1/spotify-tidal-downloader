@@ -27,41 +27,37 @@ def custom_clean_title(text: str) -> str:
         - any extra whitespace
     """
 
-    t = text
+    cleaned = text
 
-    # Remove bracketed "with / feat / featuring"
-    t = re.sub(
+    cleaned = re.sub(
         r"[\(\[\{]\s*(?:with|feat\.?|featuring)\s+.*?[\)\]\}]",
         "",
-        t,
+        cleaned,
         flags=re.IGNORECASE,
     )
-    # Remove inline feat/ft/featuring outside brackets
-    t = re.sub(r"\b(?:feat\.?|ft\.?|featuring)\s+[^-()]+", "", t, flags=re.IGNORECASE)
-
-    # Remove remaster / version / radio / single / album
-    t = re.sub(r"\(.*remaster(ed)?\)", "", t, flags=re.IGNORECASE)
-    t = re.sub(r"\bremaster(ed)?\b", "", t, flags=re.IGNORECASE)
-    t = re.sub(
-        r"radio edit|single version|album version|version", "", t, flags=re.IGNORECASE
+    cleaned = re.sub(
+        r"\b(?:feat\.?|ft\.?|featuring)\s+[^-()]+", "", cleaned, flags=re.IGNORECASE
     )
 
-    # Remove "from ..." patterns
-    t = re.sub(r"\s*[-–]\s*from\s+.*", "", t, flags=re.IGNORECASE)
-    t = re.sub(r"\(from\s+.*?\)", "", t, flags=re.IGNORECASE)
-    t = re.sub(r"\[from\s+.*?\]", "", t, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\(.*remaster(ed)?\)", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bremaster(ed)?\b", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(
+        r"radio edit|single version|album version|version",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
 
-    # Normalize separators: replace dash between title and mix/edition with space
-    t = re.sub(r"\s*[-–]\s*", " ", t)
+    cleaned = re.sub(r"\s*[-–]\s*from\s+.*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\(from\s+.*?\)", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\[from\s+.*?\]", "", cleaned, flags=re.IGNORECASE)
 
-    # Remove leftover parentheses/brackets around trailing info
-    t = re.sub(r"[\(\[\{]+(.*?)[\)\]\}]+", r"\1", t)
+    cleaned = re.sub(r"\s*[-–]\s*", " ", cleaned)
+    cleaned = re.sub(r"[\(\[\{]+(.*?)[\)\]\}]+", r"\1", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    cleaned = re.sub(r"[\s\-–:]+$", "", cleaned)
 
-    # Collapse multiple spaces and remove trailing punctuation
-    t = re.sub(r"\s+", " ", t)
-    t = re.sub(r"[\s\-–:]+$", "", t)
-
-    return t.strip()
+    return cleaned.strip()
 
 
 def cleanse_track(text: str, field: str) -> str:
@@ -69,13 +65,13 @@ def cleanse_track(text: str, field: str) -> str:
     Removes: features, versions, remasters, reissues as appropriate.
     """
 
-    if field == TrackFindType.ARTIST or field == TrackFindType.ARTISTS_ALL:
+    if field in (TrackFindType.ARTIST, TrackFindType.ARTISTS_ALL):
         return remove_feature(text)
-    elif field == TrackFindType.TITLE:
+    if field == TrackFindType.TITLE:
         return custom_clean_title(
-            remove_version(remove_remastered(remove_feature(remove_version(text))))
+            remove_version(remove_remastered(remove_feature(text)))
         )
-    elif field == TrackFindType.ALBUM:
+    if field == TrackFindType.ALBUM:
         return remove_reissue(remove_version(remove_remastered(text)))
     return text
 

@@ -46,6 +46,187 @@ from app.types import (
 from app.utils import base64_decode, is_valid_flac, load_json_file, save_json_file
 
 
+def generate_search_queries(spotify_track_data: dict[str, str]) -> list[str]:
+    """Generate ordered search queries to maximize matching chances."""
+
+    query_track_name = f"{spotify_track_data['artist']} - {spotify_track_data['title']}"
+    logging.info(f"[{spotify_track_data['index']:02d}] Searching: {query_track_name}")
+    search_queries = [query_track_name]
+
+    if spotify_track_data["artists_all"]:
+        search_queries.append(
+            f"{';'.join(spotify_track_data['artists_all'])} - {spotify_track_data['title']}"
+        )
+
+    parts = query_track_name.split(" - ")
+    search_queries.append(" - ".join(parts[1:]))
+
+    if len(parts) > 2:
+        search_queries.append(" - ".join(parts[:-1]))
+        search_queries.append(" - ".join(parts[1:-1]))
+
+    cleaned_title = remove_feature(spotify_track_data["title"])
+    search_queries.append(f"{spotify_track_data['artist']} - {cleaned_title}")
+    search_queries.append(cleaned_title)
+    search_queries.append(spotify_track_data["artist"])
+
+    return list(dict.fromkeys(search_queries))
+
+
+async def download_cover_art(client: httpx.AsyncClient, cover_uuid: str) -> str | None:
+    """Download cover art from Tidal and return the local file path."""
+
+    if not cover_uuid:
+        return None
+
+    cover_url = (
+        "https://resources.tidal.com/images/"
+        + "/".join(cover_uuid.split("-"))
+        + "/1280x1280.jpg"
+    )
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_cover:
+        cover_path = tmp_cover.name
+
+    try:
+        async with client.stream("GET", cover_url) as resp:
+            resp.raise_for_status()
+            with open(cover_path, "wb") as f:
+                async for chunk in resp.aiter_bytes(8192):
+                    f.write(chunk)
+        return cover_path
+    except Exception:
+        if os.path.exists(cover_path):
+            os.remove(cover_path)
+        raise
+
+
+def tag_m4a(
+    save_path: str, track_data: DownloadTrackData, cover_path: str | None
+) -> None:
+    """Add metadata to M4A file."""
+
+    audio = MP4(save_path)
+    audio["\xa9nam"] = track_data.title
+    audio["\xa9alb"] = track_data.album
+    audio["aART"] = track_data.artist
+    audio["\xa9ART"] = track_data.spotify_artists
+    audio["trkn"] = [(track_data.track_number, track_data.number_of_tracks)]
+    audio["\xa9day"] = track_data.release_date
+
+    if cover_path and os.path.exists(cover_path):
+        with open(cover_path, "rb") as img:
+            audio["covr"] = [MP4Cover(img.read(), imageformat=MP4Cover.FORMAT_JPEG)]
+
+    audio.save()
+
+
+def tag_flac(
+    save_path: str, track_data: DownloadTrackData, cover_path: str | None
+) -> None:
+    """Add metadata to FLAC file."""
+
+    if not is_valid_flac(save_path):
+        logging.warning(
+            f"Ignoring metadata for invalid FLAC file: {track_data.title}.flac"
+        )
+        return
+
+    audio = FLAC(save_path)
+    audio["TITLE"] = [track_data.title]
+    audio["ARTIST"] = track_data.spotify_artists
+    audio["ALBUM"] = [track_data.album]
+    audio["ALBUMARTIST"] = [track_data.artist]
+    audio["TRACKNUMBER"] = [str(track_data.track_number)]
+    audio["DATE"] = [track_data.release_date]
+
+    if cover_path and os.path.exists(cover_path):
+        pic = Picture()
+        with open(cover_path, "rb") as f:
+            pic.data = f.read()
+        pic.type = 3
+        pic.mime = "image/jpeg"
+        audio.add_picture(pic)
+
+    audio.save()
+
+
+def prepare_track_data_lyrics(track_data: dict) -> dict:
+    """Prepare track data for lyrics fetching by deriving path metadata."""
+
+    file_path = Path(track_data["path"])
+    track_data["title"] = file_path.stem
+    track_data["download_path"] = str(file_path.parent)
+    return track_data
+
+
+def delete_track(path: Path, title: str) -> None:
+    """Delete a track file from the filesystem and prune empty dirs."""
+
+    if not os.path.exists(path):
+        return
+
+    try:
+        os.remove(path)
+        logging.info(f"Deleted file no longer in playlist: {title}")
+    except Exception as e:
+        logging.error(f"Failed to delete file {title}: {e}")
+        return
+
+    parent_dir = os.path.dirname(path)
+    folder_name = os.path.basename(parent_dir) if parent_dir else ""
+    try:
+        while parent_dir and os.path.isdir(parent_dir) and not os.listdir(parent_dir):
+            folder_name = os.path.basename(parent_dir)
+            os.rmdir(parent_dir)
+            parent_dir = os.path.dirname(parent_dir)
+    except Exception as e:
+        logging.error(f"Failed to remove empty directory {folder_name}: {e}")
+
+
+def load_spotify_playlist() -> dict[int, dict[str, str]]:
+    """Load Spotify playlist from CSV file exported from Exportify.
+    Expected columns: Track Name, Artist Name(s), Album Name (optional)
+    """
+
+    if not os.path.exists(CONFIG_PLAYLIST_FILE):
+        logging.error(f"Playlist file not found: {CONFIG_PLAYLIST_FILE}")
+        return {}
+
+    with open(CONFIG_PLAYLIST_FILE, newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        headers = {h.lower().strip(): h for h in reader.fieldnames}
+
+        track_col = headers.get("track name")
+        artist_col = headers.get("artist name(s)")
+        album_col = headers.get("album name")
+
+        if not track_col or not artist_col:
+            raise RuntimeError(
+                f"Unsupported CSV format. Found columns: {reader.fieldnames}"
+            )
+
+        tracks = {}
+        for index, row in enumerate(reader, start=1):
+            track = fix_spotify_to_tidal_namings(row[track_col], "title")
+            artist = fix_spotify_to_tidal_namings(row[artist_col], "artist")
+            artists_all = artist.split(";") if ";" in artist else [artist]
+            artist = artists_all[0]
+            album = fix_spotify_to_tidal_namings(row.get(album_col, ""), "album")
+
+            if not (artist and track):
+                continue
+
+            tracks[index] = {
+                "title": track,
+                "full_title": f"{artist} - {track}",
+                "artist": artist,
+                "artists_all": artists_all,
+                "album": album,
+                "index": index,
+            }
+    return tracks
+
+
 class SpotifyTidalDownloader:
     def __init__(
         self,
@@ -59,11 +240,11 @@ class SpotifyTidalDownloader:
         self.api_instance = api_instance
         self.streaming_instance = streaming_instance
         self.spotify_tracks = None
+        self.workers = []
         self.failed_downloads = {}
         self.completed_downloads = {}
         self.download_queue = asyncio.Queue()
         self.semaphore = asyncio.Semaphore(LYRICS_DOWNLOAD_COUNT)
-        self.workers = []
 
     async def run(self) -> None:
         if not self._initialize_resources():
@@ -109,36 +290,13 @@ class SpotifyTidalDownloader:
             path = Path(self.completed_downloads[title]["path"])
             lyrics_path = path.with_suffix(".lrc")
 
-            self._delete_track(path, title)
-            self._delete_track(lyrics_path, f"{title} (Lyrics)")
+            delete_track(path, title)
+            delete_track(lyrics_path, f"{title} (Lyrics)")
 
             del self.completed_downloads[title]
 
         if completed_tracks_to_remove:
             save_json_file(PATH_CACHE_COMPLETED_DOWNLOADS, self.completed_downloads)
-
-    def _delete_track(self, path: Path, title: str) -> None:
-        """Delete a track file from the filesystem."""
-        if not os.path.exists(path):
-            return
-
-        try:
-            os.remove(path)
-            logging.info(f"Deleted file no longer in playlist: {title}")
-        except Exception as e:
-            logging.error(f"Failed to delete file {title}: {e}")
-
-        # Also remove empty parent directories up to the download path
-        parent_dir = os.path.dirname(path)
-        try:
-            while (
-                parent_dir and os.path.isdir(parent_dir) and not os.listdir(parent_dir)
-            ):
-                folder_name = os.path.basename(parent_dir)
-                os.rmdir(parent_dir)
-                parent_dir = os.path.dirname(parent_dir)
-        except Exception as e:
-            logging.error(f"Failed to remove empty directory {folder_name}: {e}")
 
     def _initialize_resources(self) -> bool:
         """Initialize resources: load Spotify playlist and caches."""
@@ -220,14 +378,14 @@ class SpotifyTidalDownloader:
             track_data_copy = completed_download.copy()
             track_data_copy["full_title"] = full_title
             track_data_copy["index"] = index
-            track_data_copy = self._prepare_track_data_lyrics(track_data_copy)
+            track_data_copy = prepare_track_data_lyrics(track_data_copy)
             return self._download_lyrics_for_cached_tracks(track_data_copy)
         return None
 
     async def _queue_track_for_download(self, spotify_track: dict) -> None:
         """Queue a Spotify track for download after searching and matching on Monochrome."""
 
-        queries = await self._get_queries(spotify_track)
+        queries = generate_search_queries(spotify_track)
         if track_data := await self._search_track(queries, spotify_track):
             await self.download_queue.put(track_data)
 
@@ -240,6 +398,7 @@ class SpotifyTidalDownloader:
         await self.download_queue.join()
         for w in workers:
             w.cancel()
+        await asyncio.gather(*workers, return_exceptions=True)
 
     def _log_completion_stats(self) -> None:
         """Log statistics about completed and failed downloads."""
@@ -288,8 +447,8 @@ class SpotifyTidalDownloader:
             download_track_data = await self._match_track(
                 found_tracks, spotify_track_data
             )
-            # If error dict is returned, it's a error
-            if type(download_track_data) is dict:
+            # If an error dict is returned, propagate the error details
+            if isinstance(download_track_data, dict):
                 error = download_track_data
                 if error["reason"] == "No suitable match found":
                     continue
@@ -297,8 +456,7 @@ class SpotifyTidalDownloader:
                 break  # Break on fetching error, no reason to continue searching
 
             # If previously failed, remove from failed downloads cache
-            if self.failed_downloads.get(full_title):
-                del self.failed_downloads[full_title]
+            if self.failed_downloads.pop(full_title, None) is not None:
                 save_json_file(PATH_CACHE_FAILED_DOWNLOADS, self.failed_downloads)
 
             return download_track_data
@@ -307,49 +465,11 @@ class SpotifyTidalDownloader:
         logging.info(f"[{index:02d}] {error['reason']} for track: {full_title}.")
         return {}
 
-    async def _get_queries(self, spotify_track_data: dict[str, str]) -> list[str]:
-        """Generate a list of search queries for a given Spotify track to maximize matching chances."""
-        query_track_name = (
-            f"{spotify_track_data['artist']} - {spotify_track_data['title']}"
-        )
-        logging.info(
-            f"[{spotify_track_data['index']:02d}] Searching: {query_track_name}"
-        )
-        search_queries = [query_track_name]
-
-        # Query with all artists if available
-        if spotify_track_data["artists_all"]:
-            search_queries.append(
-                f"{';'.join(spotify_track_data['artists_all'])} - {spotify_track_data['title']}"
-            )
-
-        # Remove artist, example: "[Artist1; Artist2 - ]Track Title - Special Edition"
-        parts = query_track_name.split(" - ")
-        search_queries.append(" - ".join(parts[1:]))
-
-        # Remove last part, example: "Track Title[ - Special Edition]"
-        if len(parts) > 2:
-            search_queries.append(" - ".join(parts[:-1]))
-            # Remove last part and first part, example: "[Artist -]Track Title[ - Special Edition]"
-            search_queries.append(" - ".join(parts[1:-1]))
-
-        # Clean title from feature (feat. Artist)
-        cleaned_title = remove_feature(spotify_track_data["title"])
-        search_queries.append(f"{spotify_track_data['artist']} - {cleaned_title}")
-        search_queries.append(cleaned_title)
-
-        # Search only artist
-        search_queries.append(spotify_track_data["artist"])
-
-        return list(
-            dict.fromkeys(search_queries)
-        )  # Remove duplicates while preserving order
-
     async def _match_track(
         self, found_tracks: list[dict], spotify_track_data: dict[str, str]
     ) -> DownloadTrackData | dict:
         """Match found Monochrome tracks with Spotify track data.
-        If a exact match is found, break and return DownloadTrackData.
+        If an exact match is found, break and return DownloadTrackData.
         If a suitable match is found, return DownloadTrackData, else return an error dict.
         """
 
@@ -623,89 +743,15 @@ class SpotifyTidalDownloader:
         Metadata added: Title, Artist, Album, Album Artist(s), Track Number, Release Date, Cover Art
         """
 
-        cover_path = await self._download_cover_art(client, track_data.cover)
+        cover_path = await download_cover_art(client, track_data.cover)
 
         if track_data.extension == ".m4a":
-            self._tag_m4a(save_path, track_data, cover_path)
+            tag_m4a(save_path, track_data, cover_path)
         else:
-            self._tag_flac(save_path, track_data, cover_path)
+            tag_flac(save_path, track_data, cover_path)
 
         if cover_path and os.path.exists(cover_path):
             os.remove(cover_path)
-
-    async def _download_cover_art(
-        self, client: httpx.AsyncClient, cover_uuid: str
-    ) -> str | None:
-        """Download cover art from Tidal and return the local file path."""
-        if not cover_uuid:
-            return None
-
-        cover_url = (
-            "https://resources.tidal.com/images/"
-            + "/".join(cover_uuid.split("-"))
-            + "/1280x1280.jpg"
-        )
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_cover:
-            cover_path = tmp_cover.name
-
-        try:
-            async with client.stream("GET", cover_url) as resp:
-                resp.raise_for_status()
-                with open(cover_path, "wb") as f:
-                    async for chunk in resp.aiter_bytes(8192):
-                        f.write(chunk)
-            return cover_path
-        except Exception:
-            if os.path.exists(cover_path):
-                os.remove(cover_path)
-            raise  # Re-raise to let the worker handle the error
-
-    def _tag_m4a(
-        self, save_path: str, track_data: DownloadTrackData, cover_path: str | None
-    ) -> None:
-        """Add metadata to M4A file."""
-
-        audio = MP4(save_path)
-        audio["\xa9nam"] = track_data.title
-        audio["\xa9alb"] = track_data.album
-        audio["aART"] = track_data.artist
-        audio["\xa9ART"] = track_data.spotify_artists
-        audio["trkn"] = [(track_data.track_number, track_data.number_of_tracks)]
-        audio["\xa9day"] = track_data.release_date
-
-        if cover_path and os.path.exists(cover_path):
-            with open(cover_path, "rb") as img:
-                audio["covr"] = [MP4Cover(img.read(), imageformat=MP4Cover.FORMAT_JPEG)]
-
-        audio.save()
-
-    def _tag_flac(
-        self, save_path: str, track_data: DownloadTrackData, cover_path: str | None
-    ) -> None:
-        """Add metadata to FLAC file."""
-        if not is_valid_flac(save_path):
-            logging.warning(
-                f"Ignoring metadata for invalid FLAC file: {track_data.title}.flac"
-            )
-            return
-
-        audio = FLAC(save_path)
-        audio["TITLE"] = [track_data.title]
-        audio["ARTIST"] = track_data.spotify_artists
-        audio["ALBUM"] = [track_data.album]
-        audio["ALBUMARTIST"] = [track_data.artist]
-        audio["TRACKNUMBER"] = [str(track_data.track_number)]
-        audio["DATE"] = [track_data.release_date]
-
-        if cover_path and os.path.exists(cover_path):
-            pic = Picture()
-            with open(cover_path, "rb") as f:
-                pic.data = f.read()
-            pic.type = 3
-            pic.mime = "image/jpeg"
-            audio.add_picture(pic)
-
-        audio.save()
 
     async def _fetch_lyrics(self, track: DownloadTrackData) -> bool:
         """Fetch lyrics for a given track. If found, save them to a .lrc file.
@@ -799,16 +845,6 @@ class SpotifyTidalDownloader:
                     f"[{track['index']:02d}] Failed to fetch lyrics for {track['full_title']}: {e}"
                 )
 
-    def _prepare_track_data_lyrics(self, track_data: dict) -> dict:
-        """Prepare track data for lyrics fetching.
-        Extract path, title, and download path from cached data.
-        """
-
-        file_path = Path(track_data["path"])
-        track_data["title"] = file_path.stem
-        track_data["download_path"] = str(file_path.parent)
-        return track_data
-
     def _is_downloaded(self, full_title: str) -> bool:
         """Check if the track is already downloaded based on its info."""
         return self.completed_downloads.get(full_title) is not None
@@ -832,47 +868,3 @@ class SpotifyTidalDownloader:
             worker.cancel()
 
         await asyncio.gather(*self.workers, return_exceptions=True)
-
-
-def load_spotify_playlist() -> dict[int, dict[str, str]]:
-    """Load Spotify playlist from CSV file exported from Exportify.
-    Expected columns: Track Name, Artist Name(s), Album Name (optional)
-    """
-
-    tracks = {}
-    if not os.path.exists(CONFIG_PLAYLIST_FILE):
-        logging.error(f"Playlist file not found: {CONFIG_PLAYLIST_FILE}")
-        return tracks
-
-    with open(CONFIG_PLAYLIST_FILE, newline="", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f)
-        headers = {h.lower().strip(): h for h in reader.fieldnames}
-
-        track_col = headers.get("track name")
-        artist_col = headers.get("artist name(s)")
-        album_col = headers.get("album name")
-
-        if not track_col or not artist_col:
-            raise RuntimeError(
-                f"Unsupported CSV format. Found columns: {reader.fieldnames}"
-            )
-
-        index = 1
-        for row in reader:
-            track = fix_spotify_to_tidal_namings(row[track_col], "title")
-            artist = fix_spotify_to_tidal_namings(row[artist_col], "artist")
-            artists_all = artist.split(";") if ";" in artist else [artist]
-            artist = artists_all[0]
-            album = fix_spotify_to_tidal_namings(row.get(album_col, ""), "album")
-
-            if artist and track:
-                tracks[index] = {
-                    "title": track,
-                    "full_title": f"{artist} - {track}",
-                    "artist": artist,
-                    "artists_all": artists_all,
-                    "album": album,
-                    "index": index,
-                }
-                index += 1
-    return tracks

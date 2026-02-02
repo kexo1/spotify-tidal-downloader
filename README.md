@@ -32,7 +32,7 @@
 ## Usage
 
 1. **Export Playlist**: Use [Exportify](https://exportify.net/) to export your Spotify playlist as a CSV file.
-2. **Configure**: Create a `config.json` file in the project directory (next to the `app` folder). You can use the example below.
+2. **Configure**: Create a `config.json` file in the project directory (next to the `app` folder). You can use the example below. Alternatively, set the environment variable `DOWNLOAD_CONFIG_DIR` to point to a directory containing `config.json` (useful for shared or centralized configs).
 3. **Run**:
    Run the application using Python:
    ```sh
@@ -44,7 +44,7 @@
 
 ## Configuration
 
-The application requires a `config.json` file in the **root directory** of the project.
+The application requires a `config.json` file in the **root directory** of the project (or in the directory pointed to by `DOWNLOAD_CONFIG_DIR`).
 
 You can set it up in two ways:
 1.  **Automatic:** Run the script once. It will automatically create a `config.json` file with default settings if one doesn't exist.

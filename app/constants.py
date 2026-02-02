@@ -3,6 +3,8 @@ import json
 import logging
 import os
 from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 #################################### Instance URLs ####################################
 INSTANCES_MONOCHROME = [
@@ -45,38 +47,47 @@ DEFAULT_CONFIG = {
 }
 
 
-def load_config():
-    if not os.path.exists("config.json"):
-        with open("config.json", "w") as f:
+def load_config() -> dict[str, Any]:
+    env_dir = os.environ.get("DOWNLOAD_CONFIG_DIR")
+    config_dir = Path(env_dir) if env_dir else Path.cwd()
+    config_path = config_dir / "config.json"
+
+    if not config_path.exists():
+        config_dir.mkdir(parents=True, exist_ok=True)
+        with config_path.open("w", encoding="utf-8") as f:
             json.dump(DEFAULT_CONFIG, f, indent=4)
         print(
-            "Config file was missing. A new one has been created with default values."
+            f"Config file was missing. A new one has been created at '{config_path}'."
         )
         print("Please check config.json and restart the program.")
         os._exit(1)
 
-    with open("config.json") as f:
+    with config_path.open(encoding="utf-8") as f:
         return json.load(f)
 
 
 data = load_config()
 
 
-def get_cfg(section, key, default, type_, min_val=None, options=None):
-    """Safely retrieves and validates configuration values."""
+def get_cfg(
+    section: str,
+    key: str,
+    default: Any,
+    expected_type: type,
+    min_val: Any | None = None,
+    options: list[str] | None = None,
+):
+    """Safely retrieve and validate configuration values."""
 
     val = data.get(section, {}).get(key, default)
 
-    # Validate type (e.g., str, int, bool)
-    if not isinstance(val, type_):
+    if not isinstance(val, expected_type):
         return default
 
-    # Validate minimum value (for numbers)
-    if min_val is not None and val < min_val:
+    if (min_val is not None) and val < min_val:
         return default
 
-    # Validate allowed options  (song quality, etc.)
-    if options is not None and val.lower() not in options:
+    if options is not None and isinstance(val, str) and val.lower() not in options:
         return default
 
     return val

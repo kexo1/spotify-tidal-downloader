@@ -1,5 +1,5 @@
 import os
-from typing import Optional, TypedDict
+from typing import Iterable, Optional, TypedDict
 
 from app.constants import (
     CONFIG_DOWNLOAD_PATH,
@@ -10,6 +10,8 @@ from app.utils import format_text_for_os
 
 
 class MatchType:
+    """Match strength classifications used during comparison."""
+
     EXACT = "exact"
     SUBSTRING = "substring"
     SKIP = "skip"
@@ -17,6 +19,8 @@ class MatchType:
 
 
 class TrackFindType:
+    """Fields that can be compared between Spotify and Tidal tracks."""
+
     TITLE = "title"
     ARTIST = "artist"
     ARTISTS_ALL = "artists_all"
@@ -24,6 +28,8 @@ class TrackFindType:
 
 
 class CompletedDownload(TypedDict):
+    """Cache payload for a completed download."""
+
     path: str
     lyrics: bool
     unsynced_exists: Optional[bool]
@@ -33,13 +39,17 @@ class CompletedDownload(TypedDict):
     duration: int
 
 
-def get_artist_names(artists) -> list[str]:
+def get_artist_names(artists: Iterable[dict] | dict) -> list[str]:
+    """Extract artist names from a single dict or an iterable of dicts."""
+
     if isinstance(artists, dict):
         artists = [artists]
     return [artist["name"] for artist in artists]
 
 
 def get_download_path(artist: str, album: str) -> str:
+    """Return a normalized download path for the given artist and album."""
+
     return os.path.join(
         CONFIG_DOWNLOAD_PATH,
         format_text_for_os(artist),
