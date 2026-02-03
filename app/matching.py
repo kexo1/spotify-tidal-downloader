@@ -29,16 +29,19 @@ def custom_clean_title(text: str) -> str:
 
     cleaned = text
 
+    # Remove bracketed "with / feat / featuring"
     cleaned = re.sub(
         r"[\(\[\{]\s*(?:with|feat\.?|featuring)\s+.*?[\)\]\}]",
         "",
         cleaned,
         flags=re.IGNORECASE,
     )
+    # Remove inline feat/ft/featuring outside brackets
     cleaned = re.sub(
         r"\b(?:feat\.?|ft\.?|featuring)\s+[^-()]+", "", cleaned, flags=re.IGNORECASE
     )
 
+    # Remove remaster / version / radio / single / album
     cleaned = re.sub(r"\(.*remaster(ed)?\)", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\bremaster(ed)?\b", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(
@@ -48,12 +51,16 @@ def custom_clean_title(text: str) -> str:
         flags=re.IGNORECASE,
     )
 
+    # Remove "from ..." patterns
     cleaned = re.sub(r"\s*[-–]\s*from\s+.*", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\(from\s+.*?\)", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\[from\s+.*?\]", "", cleaned, flags=re.IGNORECASE)
 
+    # Normalize separators: replace dash between title and mix/edition with space
     cleaned = re.sub(r"\s*[-–]\s*", " ", cleaned)
+    # Remove leftover parentheses/brackets around trailing info
     cleaned = re.sub(r"[\(\[\{]+(.*?)[\)\]\}]+", r"\1", cleaned)
+    # Collapse multiple spaces and remove trailing punctuation
     cleaned = re.sub(r"\s+", " ", cleaned)
     cleaned = re.sub(r"[\s\-–:]+$", "", cleaned)
 
