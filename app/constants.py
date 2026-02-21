@@ -43,6 +43,7 @@ DEFAULT_CONFIG = {
         "preferTidalNaming": False,
         "windowsSafeFileNames": True,
         "concurrentDownloads": 10,
+        "alwaysRefreshInstanceCache": False,
     },
     "songs": {
         "quality": "high",
@@ -118,6 +119,9 @@ CONFIG_WINDOWS_SAFE_FILE_NAMES = get_cfg(
 )
 CONFIG_CONCURRENT_DOWNLOADS = get_cfg(
     "downloader", "concurrentDownloads", 10, int, min_val=1
+)
+CONFIG_ALWAYS_REFRESH_INSTANCE_CACHE = get_cfg(
+    "downloader", "alwaysRefreshInstanceCache", False, bool
 )
 
 # Song Configurations

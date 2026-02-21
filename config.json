@@ -10,7 +10,8 @@
         "retryFailed": true,
         "preferTidalNaming": false,
         "windowsSafeFileNames": true,
-        "concurrentDownloads": 10
+        "concurrentDownloads": 10,
+        "alwaysRefreshInstanceCache": false
     },
     "songs": {
         "quality": "high",

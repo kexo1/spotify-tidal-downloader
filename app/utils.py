@@ -12,6 +12,7 @@ from mutagen.flac import FLAC
 
 from app.constants import (
     CACHE_INSTANCES_PATH,
+    CONFIG_ALWAYS_REFRESH_INSTANCE_CACHE,
     CONFIG_WINDOWS_SAFE_FILE_NAMES,
     INSTANCES_API,
     INSTANCES_STREAMING,
@@ -156,7 +157,8 @@ def resolve_instances() -> tuple[str, str]:
     )
 
     if (
-        not is_cache_stale
+        not CONFIG_ALWAYS_REFRESH_INSTANCE_CACHE
+        and not is_cache_stale
         and cached_api_instance is not None
         and cached_streaming_instance is not None
     ):
@@ -165,7 +167,11 @@ def resolve_instances() -> tuple[str, str]:
         logging.info(f"Streaming Instance: {cached_streaming_instance}")
         return cached_api_instance, cached_streaming_instance
 
-    logging.info("Refreshing fastest API instances...")
+    if CONFIG_ALWAYS_REFRESH_INSTANCE_CACHE:
+        logging.info("Force-refreshing instance cache.")
+    else:
+        logging.info("Refreshing fastest API instances...")
+
     api_instance = get_fastest_instance(INSTANCES_API)
     streaming_instance = get_fastest_instance(INSTANCES_STREAMING)
 
