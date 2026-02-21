@@ -4,14 +4,9 @@ import logging
 import httpx
 import ua_generator
 
-from app.constants import (
-    CONFIG_CONCURRENT_DOWNLOADS,
-    CONFIG_SONG_QUALITY,
-    INSTANCES_MONOCHROME,
-    INSTANCES_STREAMING,
-)
+from app.constants import CONFIG_CONCURRENT_DOWNLOADS, CONFIG_SONG_QUALITY
 from app.spotify_tidal_downloader import SpotifyTidalDownloader
-from app.utils import get_fastest_instance
+from app.utils import resolve_instances
 
 
 async def main() -> None:
@@ -41,11 +36,7 @@ async def main() -> None:
     logging.info(f"Quality: {CONFIG_SONG_QUALITY.capitalize()}")
     logging.info(f"Concurrent Downloads: {CONFIG_CONCURRENT_DOWNLOADS}")
 
-    api_instance = get_fastest_instance(INSTANCES_MONOCHROME)
-    logging.info(f"API Instance: {api_instance}")
-
-    streaming_instance = get_fastest_instance(INSTANCES_STREAMING)
-    logging.info(f"Streaming Instance: {streaming_instance}")
+    api_instance, streaming_instance = resolve_instances()
 
     downloader = SpotifyTidalDownloader(
         api_client, download_client, api_instance, streaming_instance

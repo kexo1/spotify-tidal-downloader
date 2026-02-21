@@ -48,36 +48,7 @@ The application requires a `config.json` file in the **root directory** of the p
 
 You can set it up in two ways:
 1.  **Automatic:** Run the script once. It will automatically create a `config.json` file with default settings if one doesn't exist.
-2.  **Manual:** Copy the `config.json` provided in the repository, or create one manually using the example below.
-
-### Example Configuration
-```json
-{
-    "paths": {
-        "playlistFile": "./playlist.csv",
-        "downloadPath": "./downloads",
-        "cachePath": "./cache",
-        "logPath": "./logs"
-    },
-    "downloader": {
-        "sync": false,
-        "retryFailed": true,
-        "preferTidalNaming": false,
-        "windowsSafeFileNames": true,
-        "concurrentDownloads": 10
-    },
-    "songs": {
-        "quality": "high",
-        "lyrics": false,
-        "unsyncedLyrics": false
-    },
-    "logging": {
-        "fileLimit": 5,
-        "level": "INFO",
-        "logSkipped": true
-    }
-}
-```
+2.  **Manual:** Copy the `config.json` provided in the repository to **root directory**.
 
 ### Settings Explanation
 

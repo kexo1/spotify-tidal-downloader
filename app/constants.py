@@ -7,14 +7,24 @@ from pathlib import Path
 from typing import Any
 
 #################################### Instance URLs ####################################
-INSTANCES_MONOCHROME = [
+INSTANCES_API = [
+    "https://triton.squid.wtf",
     "https://tidal-api.binimum.org",
     "https://monochrome-api.samidy.com",
+    "https://api.monochrome.tf/",
+    "https://wolf.qqdl.site",
 ]
 
 INSTANCES_STREAMING = [
     "https://tidal.kinoplus.online",
     "https://triton.squid.wtf",
+    "https://api.monochrome.tf/",
+    "https://hifi-two.spotisaver.net",
+    "https://wolf.qqdl.site",
+    "https://katze.qqdl.site",
+    "https://vogel.qqdl.site",
+    "https://maus.qqdl.site",
+    "https://hund.qqdl.site",
 ]
 
 API_LRCLIB = "https://lrclib.net/api/get"
@@ -142,6 +152,9 @@ PATH_CACHE_COMPLETED_DOWNLOADS = os.path.join(CONFIG_CACHE_PATH, "completed.json
 PATH_CACHE_FAILED_DOWNLOADS = os.path.join(CONFIG_CACHE_PATH, "failed.json")
 os.makedirs(CONFIG_CACHE_PATH, exist_ok=True)
 
+##################################### Instance caching ####################################
+CACHE_INSTANCES_PATH = os.path.join(CONFIG_CACHE_PATH, "instances.json")
+REFRESH_INSTANCES_DAYS = 7  # Refresh cached instances every 7 days
 
 ##################################### File Safety #####################################
 WINDOWS_DISALLOWED_CHARS = '<>:"/\\|?*\0'
