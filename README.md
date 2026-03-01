@@ -63,7 +63,7 @@ You can set it up in two ways:
 | | `preferTidalNaming` | If `true`, uses Tidal's naming (Title/Artist) instead of Spotify's. | `false` |
 | | `windowsSafeFileNames` | Removes invalid characters (`<>:"/\|?*`) from filenames. Essential for Windows users. | `true` |
 | | `concurrentDownloads` | Number of songs to download simultaneously. Higher values use more bandwidth/CPU. | `10` |
-| | `alwaysRefreshInstanceCache` | If `true`, always probes fastest API/streaming instances on startup and rewrites cache. If `false`, refreshes only when cache is stale. | `false` |
+| | `alwaysRefreshInstanceCache` | If `true`, always probes fastest API/streaming instances on startup and rewrites cache. If `false`, refreshes only when cache is stale. | `true` |
 | **Songs** | `quality` | Audio quality. Options: `low` (96kbps), `high` (320kbps), `lossless` (FLAC). | `high` |
 | | `lyrics` | Enables downloading of synced lyrics (`.lrc`). | `false` |
 | | `unsyncedLyrics`| Enables downloading of unsynced lyrics if synced ones are missing. | `false` |
