@@ -11,21 +11,16 @@ INSTANCES_API = [
     "https://triton.squid.wtf",
     "https://tidal-api.binimum.org",
     "https://monochrome-api.samidy.com",
-    "https://api.monochrome.tf/",
-    "https://wolf.qqdl.site",
 ]
 
 INSTANCES_STREAMING = [
-    "https://tidal.kinoplus.online",
+    "https://arran.monochrome.tf",
     "https://triton.squid.wtf",
-    "https://api.monochrome.tf/",
-    "https://hifi-two.spotisaver.net",
-    "https://wolf.qqdl.site",
-    "https://katze.qqdl.site",
-    "https://vogel.qqdl.site",
-    "https://maus.qqdl.site",
-    "https://hund.qqdl.site",
+    "https://api.monochrome.tf",
 ]
+
+UPTIME_INSTANCES_URL = "https://tidal-uptime.props-76styles.workers.dev/"
+
 
 API_LRCLIB = "https://lrclib.net/api/get"
 
@@ -43,7 +38,7 @@ DEFAULT_CONFIG = {
         "preferTidalNaming": False,
         "windowsSafeFileNames": True,
         "concurrentDownloads": 10,
-        "alwaysRefreshInstanceCache": False,
+        "alwaysRefreshInstanceCache": True,
     },
     "songs": {
         "quality": "high",
@@ -121,7 +116,7 @@ CONFIG_CONCURRENT_DOWNLOADS = get_cfg(
     "downloader", "concurrentDownloads", 10, int, min_val=1
 )
 CONFIG_ALWAYS_REFRESH_INSTANCE_CACHE = get_cfg(
-    "downloader", "alwaysRefreshInstanceCache", False, bool
+    "downloader", "alwaysRefreshInstanceCache", True, bool
 )
 
 # Song Configurations

@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import json
 import logging
@@ -17,6 +18,7 @@ from app.constants import (
     INSTANCES_API,
     INSTANCES_STREAMING,
     REFRESH_INSTANCES_DAYS,
+    UPTIME_INSTANCES_URL,
     WINDOWS_DISALLOWED_CHARS,
 )
 
@@ -60,26 +62,70 @@ def base64_decode(text: str) -> str:
     return decoded_bytes.decode("utf-8")
 
 
-def get_fastest_instance(urls: Sequence[str], timeout: float = 5) -> str | None:
+async def get_fastest_instance(urls: Sequence[str], timeout: float = 5) -> str | None:
     """Return the fastest reachable URL from the provided list."""
+
+    async def probe(url: str, client: httpx.AsyncClient) -> tuple[str, float] | None:
+        start_time = time.perf_counter()
+        try:
+            response = await client.get(url, timeout=timeout)
+            response.raise_for_status()
+        except (httpx.RequestError, httpx.HTTPStatusError):
+            return None
+
+        return url, time.perf_counter() - start_time
+
+    async with httpx.AsyncClient() as client:
+        results = await asyncio.gather(*(probe(url, client) for url in urls))
 
     fastest_url = None
     fastest_time = float("inf")
 
-    for url in urls:
-        start_time = time.perf_counter()
-        try:
-            response = httpx.get(url, timeout=timeout)
-            response.raise_for_status()
-        except (httpx.RequestError, httpx.HTTPStatusError):
+    logging.debug(
+        f"Probed URLs: {[(url, round(elapsed, 2)) for url, elapsed in results if url is not None]}"
+    )
+    for result in results:
+        if result is None:
             continue
 
-        elapsed_time = time.perf_counter() - start_time
+        url, elapsed_time = result
         if elapsed_time < fastest_time:
             fastest_time = elapsed_time
             fastest_url = url
 
     return fastest_url
+
+
+def extract_uptime_urls(instances: Any) -> list[str]:
+    """Extract URL strings from uptime payload list entries."""
+
+    return [
+        instance["url"].strip() for instance in instances if instance["url"].strip()
+    ]
+
+
+async def get_instances_from_uptime(
+    url: str = UPTIME_INSTANCES_URL, timeout: float = 5
+) -> tuple[list[str] | None, list[str] | None]:
+    """Fetch API and streaming instance lists from uptime endpoint."""
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, timeout=timeout)
+            response.raise_for_status()
+            data = response.json()
+            api_instances = extract_uptime_urls(data["api"])
+            streaming_instances = extract_uptime_urls(data["streaming"])
+    except (
+        httpx.RequestError,
+        httpx.HTTPStatusError,
+        ValueError,
+        KeyError,
+        TypeError,
+    ):
+        return None, None
+
+    return api_instances, streaming_instances
 
 
 def load_json_file(file_path: str) -> dict[str, Any]:
@@ -146,7 +192,7 @@ def save_instance_cache(
     )
 
 
-def resolve_instances() -> tuple[str, str]:
+async def resolve_instances() -> tuple[str, str]:
     """Resolve API and streaming instances using cache when possible."""
 
     cached_api_instance, cached_streaming_instance = load_instance_cache(
@@ -167,18 +213,26 @@ def resolve_instances() -> tuple[str, str]:
         logging.info(f"Streaming Instance: {cached_streaming_instance}")
         return cached_api_instance, cached_streaming_instance
 
-    if CONFIG_ALWAYS_REFRESH_INSTANCE_CACHE:
-        logging.info("Force-refreshing instance cache.")
-    else:
-        logging.info("Refreshing fastest API instances...")
+    logging.info("Refreshing fastest API instances...")
+    api_instances, streaming_instances = await get_instances_from_uptime()
 
-    api_instance = get_fastest_instance(INSTANCES_API)
-    streaming_instance = get_fastest_instance(INSTANCES_STREAMING)
+    if api_instances is None or streaming_instances is None:
+        logging.warning(
+            "Uptime endpoint is unreachable or returned invalid data. "
+            "Falling back to configured instance constants."
+        )
+    api_candidates = api_instances or INSTANCES_API
+    streaming_candidates = streaming_instances or INSTANCES_STREAMING
 
-    if api_instance is None:
-        api_instance = cached_api_instance or INSTANCES_API[0]
-    if streaming_instance is None:
-        streaming_instance = cached_streaming_instance or INSTANCES_STREAMING[0]
+    api_instance, streaming_instance = await asyncio.gather(
+        get_fastest_instance(api_candidates),
+        get_fastest_instance(streaming_candidates),
+    )
+
+    api_instance = api_instance or cached_api_instance or INSTANCES_API[0]
+    streaming_instance = (
+        streaming_instance or cached_streaming_instance or INSTANCES_STREAMING[0]
+    )
 
     save_instance_cache(CACHE_INSTANCES_PATH, api_instance, streaming_instance)
     logging.info(f"API Instance: {api_instance}")

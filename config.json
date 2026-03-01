@@ -11,7 +11,7 @@
         "preferTidalNaming": false,
         "windowsSafeFileNames": true,
         "concurrentDownloads": 10,
-        "alwaysRefreshInstanceCache": false
+        "alwaysRefreshInstanceCache": true
     },
     "songs": {
         "quality": "high",

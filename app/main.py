@@ -36,7 +36,7 @@ async def main() -> None:
     logging.info(f"Quality: {CONFIG_SONG_QUALITY.capitalize()}")
     logging.info(f"Concurrent Downloads: {CONFIG_CONCURRENT_DOWNLOADS}")
 
-    api_instance, streaming_instance = resolve_instances()
+    api_instance, streaming_instance = await resolve_instances()
 
     downloader = SpotifyTidalDownloader(
         api_client, download_client, api_instance, streaming_instance
