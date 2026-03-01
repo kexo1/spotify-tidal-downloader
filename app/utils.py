@@ -76,14 +76,17 @@ async def get_fastest_instance(urls: Sequence[str], timeout: float = 5) -> str |
         return url, time.perf_counter() - start_time
 
     async with httpx.AsyncClient() as client:
-        results = await asyncio.gather(*(probe(url, client) for url in urls))
+        tasks = [probe(url, client) for url in urls]
+        results = await asyncio.gather(*tasks)
 
     fastest_url = None
     fastest_time = float("inf")
 
-    logging.debug(
-        f"Probed URLs: {[(url, round(elapsed, 2)) for url, elapsed in results if url is not None]}"
-    )
+    if not results:
+        logging.debug(
+            f"Probed URLs: {[(url, round(elapsed, 2)) for url, elapsed in results if url is not None]}"
+        )
+
     for result in results:
         if result is None:
             continue
