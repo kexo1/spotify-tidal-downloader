@@ -82,9 +82,9 @@ async def get_fastest_instance(urls: Sequence[str], timeout: float = 5) -> str |
     fastest_url = None
     fastest_time = float("inf")
 
-    if not results:
+    if results:
         logging.debug(
-            f"Probed URLs: {[(url, round(elapsed, 2)) for url, elapsed in results if url is not None]}"
+            f"Probed URLs: {[(url, round(elapsed, 2)) for result in results if result is not None for url, elapsed in [result]]}"
         )
 
     for result in results:
