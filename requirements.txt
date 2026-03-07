@@ -1,4 +1,4 @@
 httpx
 music_metadata_filter
-ua-generator
+fake-useragent
 mutagen

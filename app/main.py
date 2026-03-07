@@ -2,9 +2,8 @@ import asyncio
 import logging
 
 import httpx
-import ua_generator
 
-from app.constants import CONFIG_CONCURRENT_DOWNLOADS, CONFIG_SONG_QUALITY
+from app.constants import CONFIG_CONCURRENT_DOWNLOADS, CONFIG_SONG_QUALITY, USER_AGENT
 from app.spotify_tidal_downloader import SpotifyTidalDownloader
 from app.utils import resolve_instances
 
@@ -17,7 +16,7 @@ async def main() -> None:
         ),
         timeout=httpx.Timeout(10.0),
     )
-    api_client.headers = httpx.Headers({"User-Agent": ua_generator.generate().text})
+    api_client.headers = httpx.Headers({"User-Agent": USER_AGENT})
 
     download_client = httpx.AsyncClient(
         limits=httpx.Limits(
@@ -27,9 +26,7 @@ async def main() -> None:
         ),
         timeout=None,  # streaming
     )
-    download_client.headers = httpx.Headers(
-        {"User-Agent": ua_generator.generate().text}
-    )
+    download_client.headers = httpx.Headers({"User-Agent": USER_AGENT})
 
     logging.info("#####################################")
     logging.info("Starting Spotify-Tidal Downloader...")

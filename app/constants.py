@@ -6,6 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from fake_useragent import UserAgent
+
 #################################### Instance URLs ####################################
 INSTANCES_API = [
     "https://triton.squid.wtf",
@@ -150,6 +152,12 @@ PATH_PLAYLIST_FILE = os.path.abspath(CONFIG_PLAYLIST_FILE)
 PATH_CACHE_COMPLETED_DOWNLOADS = os.path.join(CONFIG_CACHE_PATH, "completed.json")
 PATH_CACHE_FAILED_DOWNLOADS = os.path.join(CONFIG_CACHE_PATH, "failed.json")
 os.makedirs(CONFIG_CACHE_PATH, exist_ok=True)
+
+############################# User Agent Configuration ############################
+try:
+    USER_AGENT = UserAgent(min_version=120.0).random
+except Exception:
+    USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
 
 ##################################### Instance caching ####################################
 CACHE_INSTANCES_PATH = os.path.join(CONFIG_CACHE_PATH, "instances.json")
