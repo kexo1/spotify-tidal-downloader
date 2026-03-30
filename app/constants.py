@@ -228,7 +228,15 @@ KEYWORDS_SONG_COLLECTIONS = [
     "classics",
 ]
 
-KEYWORDS_SONG_EDITS = ["remix", "edit", "slowed", "instrumental", "live"]
+KEYWORDS_SONG_EDITS = [
+    "remix",
+    "edit",
+    "slowed",
+    "instrumental",
+    "live",
+    "version",
+    "karaoke",
+]
 
 ##################################### Limits ####################################
 RETRY_COUNT_DOWNLOAD = 3
