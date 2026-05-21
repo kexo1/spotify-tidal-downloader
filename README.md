@@ -26,11 +26,6 @@
 > **Titles, albums, or artist names may differ.** The tool attempts to match best efforts (~98 % accuracy observed).<br>
 > Some songs might be available on Spotify but not on the Tidal.
 
-> [!Warning]
-> **Backend moved from Tidal to Qobuz after Monochrome lost Tidal API access.**
-> **High quality downloads are MP3 (320kbps), not AAC.**
-> **Qobuz has a smaller catalog, so more songs may be missing.**
-
 ## Installation
 
 1. **Prerequisites**: Ensure you have [Python 3.9+](https://www.python.org/downloads/) installed.
