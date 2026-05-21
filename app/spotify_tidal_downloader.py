@@ -21,6 +21,7 @@ from app.constants import (
     CONFIG_RETRY_FAILED,
     CONFIG_SONG_QUALITY,
     CONFIG_SYNC,
+    ERROR_FAILED_DOWNLOAD_URL,
     ERROR_RATE_LIMITED,
     LYRICS_DOWNLOAD_COUNT,
     PATH_CACHE_COMPLETED_DOWNLOADS,
@@ -51,9 +52,16 @@ def generate_search_queries(spotify_track_data: dict[str, str]) -> list[str]:
 
     query_track_name = f"{spotify_track_data['artist']} - {spotify_track_data['title']}"
     logging.info(f"[{spotify_track_data['index']:02d}] Searching: {query_track_name}")
-    search_queries = [query_track_name]
+    search_queries = []
+    # Artist - Album - Title
+    search_queries.append(
+        f"{spotify_track_data['artist']} - {spotify_track_data['album']} - {spotify_track_data['title']} "
+    )
+    # Artist - Title
+    search_queries.append(query_track_name)
 
     if spotify_track_data["artists_all"]:
+        # Artist 1, Artist 2 - Title
         search_queries.append(
             f"{';'.join(spotify_track_data['artists_all'])} - {spotify_track_data['title']}"
         )
@@ -338,7 +346,10 @@ class SpotifyTidalDownloader:
         if (
             not CONFIG_RETRY_FAILED
             and self._is_failed(full_title)
-            and self._fail_reason(full_title) != ERROR_RATE_LIMITED
+            and (
+                self._fail_reason(full_title) != ERROR_RATE_LIMITED
+                and self._fail_reason(full_title) != ERROR_FAILED_DOWNLOAD_URL
+            )
         ):
             if CONFIG_LOG_SKIPPED:
                 logging.info(f"[{index:02d}] Skipping failed track: {full_title}")
@@ -462,7 +473,7 @@ class SpotifyTidalDownloader:
             return download_track_data
 
         self._cache_failed_song(full_title, error)
-        logging.info(f"[{index:02d}] {error['reason']} for track: {full_title}.")
+        logging.info(f"[{index:02d}] {error['reason']} Track: {full_title}.")
         return {}
 
     async def _match_track(
@@ -539,7 +550,7 @@ class SpotifyTidalDownloader:
         download_url = await self._get_download_url(tidal_track.id, spotify_track)
         if not download_url:
             return {
-                "reason": "Failed to get download URL from streaming instance",
+                "reason": ERROR_FAILED_DOWNLOAD_URL,
             }
 
         fetch_album_data_success = await self._get_additional_track_data(

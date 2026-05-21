@@ -105,7 +105,6 @@ def compare_results(search: str, found: str, field: str) -> MatchType:
     search_clean_normalized = normalize(search_clean)
     found_clean_normalized = normalize(found_clean)
 
-    # Debug
     logging.debug(
         f"Comparing '{search_clean_normalized}' with '{found_clean_normalized}' for field '{field}'"
     )

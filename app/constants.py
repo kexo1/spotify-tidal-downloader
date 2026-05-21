@@ -247,3 +247,4 @@ LYRICS_DOWNLOAD_COUNT = 5
 ERROR_RATE_LIMITED = (
     "Failed to fetch album metadata after matching, try again next run."
 )
+ERROR_FAILED_DOWNLOAD_URL = "Failed to get download URL from streaming instance."

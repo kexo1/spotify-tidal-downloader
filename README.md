@@ -1,3 +1,10 @@
+> [!Warning]
+> **Project archived.**
+> **Backend moved from Tidal to Qobuz after Monochrome lost Tidal API access.**
+> **High quality downloads are MP3 (320kbps), not AAC.**
+> **Qobuz has a smaller catalog, so more songs may be missing.**
+> **This change is the reason for archiving.**
+
 <div align="center">
 
 # Spotify Tidal Downloader
@@ -18,6 +25,11 @@
 > **Matching Spotify songs to Tidal tracks** is not 100 % perfect.  
 > **Titles, albums, or artist names may differ.** The tool attempts to match best efforts (~98 % accuracy observed).<br>
 > Some songs might be available on Spotify but not on the Tidal.
+
+> [!Warning]
+> **Backend moved from Tidal to Qobuz after Monochrome lost Tidal API access.**
+> **High quality downloads are MP3 (320kbps), not AAC.**
+> **Qobuz has a smaller catalog, so more songs may be missing.**
 
 ## Installation
 
@@ -64,7 +76,7 @@ You can set it up in two ways:
 | | `windowsSafeFileNames` | Removes invalid characters (`<>:"/\|?*`) from filenames. Essential for Windows users. | `true` |
 | | `concurrentDownloads` | Number of songs to download simultaneously. Higher values use more bandwidth/CPU. | `10` |
 | | `alwaysRefreshInstanceCache` | If `true`, always probes fastest API/streaming instances on startup and rewrites cache. If `false`, refreshes only when cache is stale. | `true` |
-| **Songs** | `quality` | Audio quality. Options: `low` (96kbps), `high` (320kbps), `lossless` (FLAC). | `high` |
+| **Songs** | `quality` | Audio quality. Options: `high` (320kbps), `lossless` (FLAC). Internally mapped to `5` and `6`. | `high` |
 | | `lyrics` | Enables downloading of synced lyrics (`.lrc`). | `false` |
 | | `unsyncedLyrics`| Enables downloading of unsynced lyrics if synced ones are missing. | `false` |
 | **Logging** | `level` | Detail level of logs. Options: `DEBUG`, `INFO`, `WARNING`, `ERROR`. | `INFO` |
